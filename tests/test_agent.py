@@ -49,7 +49,7 @@ def saved(monkeypatch):
 
 def happy_script():
     return FakeClient(
-        reply(tool("get_forecast"), tool("assess_current_plan"), tool("run_planner")),
+        reply(tool("assess_current_plan"), tool("run_planner")),
         reply(tool("check_plan", plan_id="p1")),
         reply(tool("finalize_plan", plan_id="p1")),
         reply(text("Le froid rend plusieurs services infaisables. Le plan est refait."), stop="end_turn"),
@@ -64,7 +64,7 @@ def test_llm_happy_path_uses_the_models_explanation_and_traces_steps(saved):
     assert plan["fallback"] is False
     assert plan["explanation"] == "Le froid rend plusieurs services infaisables. Le plan est refait."
     assert [s["tool"] for s in plan["agent_trace"]] == [
-        "get_forecast", "assess_current_plan", "run_planner", "check_plan", "finalize_plan",
+        "refresh_forecast", "detect_event", "assess_current_plan", "run_planner", "check_plan", "finalize_plan",
     ]
     assert all(s["summary"] and s["seconds"] >= 0 for s in plan["agent_trace"])
     assert plan["plan_id"] == f"{NIGHT}-agent" and plan["strategy"] == "agent"
@@ -81,7 +81,7 @@ def test_tool_results_are_returned_in_a_single_user_message(saved):
     second = client.calls[1]["messages"]
     results = second[-1]["content"]
     assert second[-1]["role"] == "user"
-    assert [r["type"] for r in results] == ["tool_result"] * 3
+    assert [r["type"] for r in results] == ["tool_result"] * 2
 
 
 def test_llm_can_harden_and_relaunch(saved):
@@ -157,7 +157,7 @@ def test_llm_off_uses_fallback_without_client(saved):
 def test_fallback_hardens_until_the_plan_checks_out(saved):
     plan = agent.run_agent(COLD)
     tools = [s["tool"] for s in plan["agent_trace"]]
-    assert tools[:3] == ["get_forecast", "assess_current_plan", "run_planner"]
+    assert tools[:4] == ["refresh_forecast", "detect_event", "assess_current_plan", "run_planner"]
     cold = run_planner({**COLD, "strategy": "agent"})
     assert plan["kpis"]["services_uncovered"] <= cold["kpis"]["services_uncovered"]
 
@@ -194,3 +194,77 @@ def test_diff_plans_is_computed_from_the_plans():
         assert r["from_bus"] != r["to_bus"]
     for a in d["charging_advanced"]:
         assert a["hours_earlier"] >= 0.5
+
+
+# --- météo rafraîchie, détection d'événement, plan enregistré ---------------------
+
+@pytest.fixture
+def stored(monkeypatch):
+    """Un plan normal déjà enregistré (nuit douce) que data.get_plan renvoie."""
+    plan = run_planner({"night_date": NIGHT, "strategy": "agent", "temp_override_c": 3.0})
+    monkeypatch.setattr(data, "get_plan", lambda night, strategy: plan if strategy == "agent" else None)
+    return plan
+
+
+def refresh_to(monkeypatch, temp):
+    monkeypatch.setattr(
+        data, "refresh_forecast",
+        lambda night: {"min_temp_c": temp, "sources": ["open-meteo", "ecmwf"], "fetched_at": "2026-01-13T20:00:00"},
+        raising=False,
+    )
+
+
+def test_refresh_forecast_is_the_first_step(saved):
+    plan = agent.run_agent(COLD)
+    assert plan["agent_trace"][0]["tool"] == "refresh_forecast"
+    assert plan["agent_trace"][1]["tool"] == "detect_event"
+
+
+def test_stable_forecast_returns_the_saved_plan_without_calling_the_llm(stored, saved, monkeypatch):
+    refresh_to(monkeypatch, stored["forecast_min_temp_c"] - 1.0)  # baisse de 1°C : sous le seuil
+    client = FakeClient()  # toute requête ferait échouer le test
+    plan = agent.run_agent({"night_date": NIGHT, "strategy": "agent"}, client=client)
+    assert client.calls == []
+    assert [s["tool"] for s in plan["agent_trace"]] == ["refresh_forecast", "detect_event"]
+    assert plan["assignments"] == stored["assignments"] and plan["explanation"] == stored["explanation"]
+    assert not saved  # rien n'est réécrit
+
+
+def test_drop_of_more_than_3_degrees_triggers_a_replan(stored, saved, monkeypatch):
+    refresh_to(monkeypatch, stored["forecast_min_temp_c"] - 4.0)
+    plan = agent.run_agent({"night_date": NIGHT, "strategy": "agent"})
+    tools = [s["tool"] for s in plan["agent_trace"]]
+    assert "Événement détecté" in plan["agent_trace"][1]["summary"]
+    assert "assess_current_plan" in tools and "run_planner" in tools
+    assert saved
+
+
+def test_button_override_always_counts_as_an_event(stored, saved, monkeypatch):
+    refresh_to(monkeypatch, stored["forecast_min_temp_c"])  # la météo n'a pas bougé
+    plan = agent.run_agent(COLD)
+    assert "assess_current_plan" in [s["tool"] for s in plan["agent_trace"]]
+
+
+def test_no_saved_plan_means_a_plan_is_needed(saved, monkeypatch):
+    monkeypatch.setattr(data, "get_plan", lambda night, strategy: None)
+    plan = agent.run_agent({"night_date": NIGHT, "strategy": "agent"})
+    assert "aucun plan enregistré" in plan["agent_trace"][1]["summary"]
+    assert saved
+
+
+def test_force_replans_even_without_event(stored, saved, monkeypatch):
+    refresh_to(monkeypatch, stored["forecast_min_temp_c"])
+    plan = agent.run_agent({"night_date": NIGHT, "strategy": "agent"}, force=True)
+    assert "run_planner" in [s["tool"] for s in plan["agent_trace"]] and saved
+
+
+def test_use_llm_false_never_builds_a_client(saved, monkeypatch):
+    monkeypatch.setattr(agent, "_make_client", lambda: (_ for _ in ()).throw(AssertionError("client créé")))
+    plan = agent.run_agent(COLD, use_llm=False)
+    assert plan["fallback"] is True
+
+
+def test_the_saved_plan_is_the_baseline_of_the_diff(stored, saved, monkeypatch):
+    plan = agent.run_agent(COLD)
+    assert plan["explanation"]
+    assert "3°C" in plan["explanation"]  # « passe de 3°C à -5°C », tiré du plan enregistré
