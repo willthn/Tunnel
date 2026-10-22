@@ -81,6 +81,9 @@ class Constraints(TypedDict):
     temp_override_c: NotRequired[float]   # ex. -5.0 pour le bouton « vague de froid »
     margin_pct: NotRequired[float]        # marge de sécurité, 15 par défaut
     advance_charging: NotRequired[bool]   # recharger plus tôt dans la nuit
+    charge_start: NotRequired[str]        # "HH:MM" la veille au soir, 21:00 par défaut (19:00 si advance_charging)
+    exclude_buses: NotRequired[list[str]] # bus à ne pas utiliser (panne, maintenance)
+    use_reserve: NotRequired[bool]        # autoriser les bus de réserve B31+ (vrai par défaut)
 
 
 class Assignment(TypedDict):
