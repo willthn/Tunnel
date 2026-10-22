@@ -44,6 +44,33 @@ def _evaluate(plan: dict, temp: float) -> dict:
     }
 
 
+def _impact(naive: dict, agent: dict, n: dict, a: dict) -> dict:
+    """Résultats mesurables pour le one-pager et la vidéo, calculés sur les plans (rien en dur).
+
+    Aucun coût de service perdu n'est supposé : on donne le surcoût de recharge par service sauvé,
+    donc « rentable dès qu'un service perdu coûte plus que extra_eur_per_saved_service »."""
+    from app.planner import check_plan  # import local : planner dépend de model, pas de metrics
+
+    def lost(ev: dict, plan: dict) -> set[str]:
+        return set(plan.get("uncovered_services", [])) | {f["service_id"] for f in ev["services_failing_en_route"]}
+
+    services = model._services()
+    saved = lost(n, naive) - lost(a, agent)  # perdus avec le plan naïf, tenus avec le plan agent
+    saved_n = len(saved)
+    extra = round(a["charging_cost_eur"] - n["charging_cost_eur"], 1)
+    check = check_plan(agent)
+    return {
+        "services_saved": n["services_uncovered_real"] - a["services_uncovered_real"],
+        "km_saved": round(sum(services[sid]["distance_km"] for sid in saved if sid in services)),
+        "extra_charging_eur": extra,
+        "extra_eur_per_saved_service": round(extra / saved_n, 2) if saved_n else None,
+        "replan_seconds": agent.get("kpis", {}).get("replan_seconds"),
+        "peak_power_kw": check["peak_power_kw"],
+        "max_power_kw": check["max_power_kw"],
+        "reserve_buses_used": sum(1 for x in agent.get("assignments", []) if int(x["bus_id"][1:]) > 30),
+    }
+
+
 def compare_plans(naive: dict, agent: dict) -> dict:
     """KPIs de la section 11 : {naive, agent, delta}, à afficher dans l'écran de résultats."""
     # Les deux plans sont jugés dans les mêmes conditions : la température de la nuit vécue,
@@ -58,5 +85,6 @@ def compare_plans(naive: dict, agent: dict) -> dict:
             "services_uncovered_real": n["services_uncovered_real"] - a["services_uncovered_real"],
             "charging_cost_eur": round(a["charging_cost_eur"] - n["charging_cost_eur"], 2),
         },
+        "impact": _impact(naive, agent, n, a),
         "mape_history": mape_history(),
     }
