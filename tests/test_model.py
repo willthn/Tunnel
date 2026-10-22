@@ -1,4 +1,5 @@
 """Tests du modèle et des métriques (Data 2). Lancer : uv run --with numpy --with pytest pytest tests/test_model.py"""
+import csv
 import json
 
 import pytest
@@ -9,7 +10,9 @@ from app import data, metrics, model, truth
 @pytest.fixture(autouse=True)
 def replayed(monkeypatch):
     """Magasin en mémoire isolé : les tests n'écrivent jamais dans l'état partagé de app.data."""
-    runs, obs = [], []
+    runs = []
+    with open(model.SEED_OBS, encoding="utf-8") as f:  # jeu de départ, quel que soit DATA_MODE (fake ou aiven)
+        obs = [{**r, "temp_c": float(r["temp_c"]), "km": float(r["km"]), "kwh": float(r["kwh"])} for r in csv.DictReader(f)]
     monkeypatch.setattr(data, "get_model_runs", lambda: list(runs))
     monkeypatch.setattr(data, "save_model_run", runs.append)
     monkeypatch.setattr(data, "get_consumption_obs", lambda: list(obs))
