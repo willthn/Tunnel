@@ -188,7 +188,15 @@ class _Session:
             if fetch is None:  # data.py d'avant refresh_forecast : on relit la prévision en base
                 res = {"min_temp_c": min(p["temp_c"] for p in data.get_forecast(night)), "sources": [], "fetched_at": ""}
             else:
-                res = fetch(night)
+                try:
+                    res = fetch(night)
+                except Exception as exc:  # fournisseurs météo injoignables ou limités : la démo ne doit pas tomber
+                    res = {"min_temp_c": min(p["temp_c"] for p in data.get_forecast(night)),
+                           "sources": [{"provider": "base", "rows": 0, "error": f"{type(exc).__name__}: {exc}"[:120]}],
+                           "fetched_at": ""}
+                    self._forecast_temp = None
+                    self.refreshed = res
+                    return res, f"Fournisseurs météo injoignables, prévision de la base : {res['min_temp_c']:g}°C"
             _refresh_cache[self.night] = (_now(), copy.deepcopy(res))
             summary = f"Prévision rafraîchie : {res['min_temp_c']:g}°C"
         self._forecast_temp = None  # get_forecast renvoie désormais la valeur consolidée

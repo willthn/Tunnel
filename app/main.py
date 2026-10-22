@@ -3,11 +3,14 @@
 Les routes et leurs réponses font partie du contrat : le front code contre elles.
 Lancer : uv run fastapi dev app/main.py
 """
+import logging
 import os
+import re
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -19,13 +22,24 @@ from app.planner import run_planner
 app = FastAPI(title="WattShift")
 app.add_middleware(
     CORSMiddleware,
-    # Lovable publie sur *.lovable.app, prévisualise sur *.lovableproject.com / *.lovable.dev.
-    allow_origin_regex=r"https://.*\.(lovable\.app|lovableproject\.com|lovable\.dev)|http://localhost:\d+",
+    # Front publié sur Vercel (*.vercel.app) ; Lovable : *.lovable.app, prévisualisations *.lovableproject.com / *.lovable.dev.
+    allow_origin_regex=r"https://[a-z0-9.-]+\.(vercel\.app|lovable\.app|lovableproject\.com|lovable\.dev)|http://localhost:\d+",
     # Domaine du front publié (ex. https://wattshift.lovable.app ou un domaine perso), séparés par des virgules.
     allow_origins=[o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+log = logging.getLogger("uvicorn.error")
+
+
+@app.exception_handler(Exception)
+async def unhandled_error(request: Request, exc: Exception) -> JSONResponse:
+    """Toute erreur inattendue : traceback dans les logs du serveur, type et message (sans secret) au client."""
+    log.error("Erreur non gérée sur %s %s", request.method, request.url.path, exc_info=exc)
+    msg = re.sub(r"postgres(?:ql)?://\S+", "postgres://<masqué>", f"{type(exc).__name__}: {exc}")
+    return JSONResponse(status_code=500, content={"detail": msg[:300]})
 
 
 class ColdSnap(BaseModel):
