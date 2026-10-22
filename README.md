@@ -375,6 +375,46 @@ La data est le chemin critique (la courbe d'apprentissage et la comparaison naï
 | 4:00 à 4:30 | Ensemble : gel du code, déploiement final, vidéo de secours | | |
 | 4:30 à 6:00 | Marge : bugs, répétitions, bonus (ClickHouse, Lightdash) | | |
 
+### Tâches par personne
+
+Chacun prend une lettre (A, B ou C) et coche ses cases dans ce fichier en commitant (`[x]`). Les fichiers appartiennent à une seule personne (section 9).
+
+**A : Data 1, infra et ingestion**
+
+- [x] GTFS de Dijon récupéré, 30 services extraits dans `data/services.csv` (`scripts/extract_services.py`)
+- [ ] Créer le service Aiven PostgreSQL, partager `PG_URI` hors GitHub, ajouter `.env.example`
+- [ ] Initialiser le projet : `uv init`, `pyproject.toml`, `uv.lock` (dépendances de la section 6)
+- [ ] Créer les tables de la section 8 (`scripts/create_tables.py` ou SQL)
+- [ ] `app/data.py` en mode `fake` (signatures section 9), puis mode `aiven`
+- [ ] Météo Open-Meteo pour Dijon, une vraie nuit froide, figée en `data/weather.csv`
+- [ ] Prix de l'électricité en 3 tranches dans `energy_price`
+- [ ] `scripts/load_data.py` : charge services, météo, prix, flotte et chargeurs dans Aiven
+- [ ] Déployer le backend sur Aiven Runtime (tester d'abord un « hello world » FastAPI + uv)
+
+**B : Agent**
+
+- [ ] `app/planner.py` : heuristique de la section 10 sur `app/data.py` factice
+- [ ] Plan naïf (consommation fixe à 15°C) et `check_plan()`
+- [ ] Boucle agent Claude avec les 6 outils (`app/agent.py`)
+- [ ] Explications du plan en français
+- [ ] Routes FastAPI (`app/main.py`) : plan naïf, plan agent, bouton « vague de froid », métriques
+- [ ] Fiabiliser le scénario de démo de bout en bout
+
+**C : Data 2 puis Produit**
+
+- [ ] Flotte simulée : 30 bus (`buses`) et 10 chargeurs (`chargers`) selon les paramètres de la section 7, dans `data/buses.csv` et `data/chargers.csv`
+- [ ] Modèle « vrai » caché + bruit, consommation observée sur 3 nuits (`consumption_obs`)
+- [ ] `app/model.py` : `predict_consumption`, `available_kwh`, `record_outcome` (régression, MAPE)
+- [ ] Rejeu de 3 nuits, écriture dans `model_runs`, `app/metrics.py` (`compare_plans`, `mape_history`)
+- [ ] Projet Lovable (dépôt séparé), publié sur données factices
+- [ ] Écran dépôt, bouton « vague de froid », comparaison naïf vs agent, courbe de MAPE, branchés sur l'API
+- [ ] Slides de pitch et vidéo de secours
+
+**Ensemble**
+
+- [ ] 0:00 à 0:20 : valider schéma (section 8), JSON et signatures (section 9)
+- [ ] Gel du code à 4:30, déploiement final
+
 ### À faire avant le jour J (si le règlement l'autorise)
 
 Rien de tout ça n'est du code produit, mais chaque point retire un risque du build.
