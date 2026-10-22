@@ -251,7 +251,10 @@ def _make_client():
         return None
     if not (os.getenv("ANTHROPIC_API_KEY") or os.getenv("ANTHROPIC_AUTH_TOKEN")):
         return None  # pas de clé dans .env : repli direct, sans erreur d'authentification dans la trace
-    return anthropic.Anthropic(timeout=LLM_TIMEOUT_S, max_retries=1)
+    headers = {}
+    if os.getenv("ANTHROPIC_WORKSPACE_ID"):  # clé non rattachée à un workspace : l'API exige l'en-tête
+        headers["anthropic-workspace-id"] = os.environ["ANTHROPIC_WORKSPACE_ID"]
+    return anthropic.Anthropic(timeout=LLM_TIMEOUT_S, max_retries=1, default_headers=headers or None)
 
 
 def _run_llm(session: _Session, client) -> str:
