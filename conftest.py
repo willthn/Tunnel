@@ -14,8 +14,10 @@ import pytest
 @pytest.fixture(autouse=True)
 def _fresh_fake_plans():
     """Les plans « enregistrés » du mode fake vivent en mémoire : on repart de zéro à chaque test."""
-    from app import data
+    from app import agent, data
 
     getattr(data, "_fake_plans", []).clear()
+    agent._refresh_cache.clear()  # cache météo de l'agent : chaque test part sans
     yield
     getattr(data, "_fake_plans", []).clear()
+    agent._refresh_cache.clear()
