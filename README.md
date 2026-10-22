@@ -311,7 +311,7 @@ Un fichier n'a qu'un responsable : on évite ainsi les conflits Git.
 
 | Élément | Formule |
 |---|---|
-| Consommation au km | `kwh_per_km = base_bus + a * max(0, 15 - temp_c) + b_ligne` |
+| Consommation au km | `kwh_per_km = base_bus + a * max(0, 5 - temp_c) + b_ligne` (le chauffage et la chimie de la batterie ne pèsent que sous 5°C : un plan naïf tient par temps doux et ne casse qu'avec le froid) |
 | Énergie disponible | `available_kwh = battery_kwh * soh * soc_matin * (1 - c * max(0, 5 - temp_c))` |
 | Énergie nécessaire | `predicted_kwh = kwh_per_km * distance_km` |
 | Apprentissage | Après chaque nuit, régression linéaire sur `consumption_obs`, nouveaux coefficients dans `model_runs`, calcul de la MAPE |
@@ -398,7 +398,7 @@ Chacun prend une lettre (A, B ou C) et coche ses cases dans ce fichier en commit
 **A : Data 1, infra et ingestion**
 
 - [x] GTFS de Dijon récupéré, 30 services extraits dans `data/services.csv` (`scripts/extract_services.py`)
-- [ ] Générer la flotte à 40 bus (30 titulaires + 10 de réserve) avec des SoH variés (de 0,80 à 1,00) pour que le grand froid rende certaines paires bus/service infaisables, puis la charger dans `buses`
+- [x] (fait par C, `scripts/simulate_data.py`) Générer la flotte à 40 bus (30 titulaires + 10 de réserve) avec des SoH variés (de 0,80 à 1,00) pour que le grand froid rende certaines paires bus/service infaisables, puis la charger dans `buses`
 - [ ] Créer le service Aiven PostgreSQL, partager `PG_URI` hors GitHub, ajouter `.env.example`
 - [ ] Initialiser le projet : `uv init`, `pyproject.toml`, `uv.lock` (dépendances de la section 6)
 - [x] Créer les tables de la section 8 (`db/schema.sql`, appliqué par `scripts/load_data.py`)

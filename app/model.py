@@ -1,67 +1,97 @@
 """Modèle de consommation appris (Data 2).
 
-kwh_per_km = base_bus + a * max(0, 15 - temp_c) + b_ligne
-available  = battery * soh * soc * (1 - c * max(0, 5 - temp_c))
+kwh_per_km = base_bus + a * max(0, T_COLD - temp_c) + b_ligne
+available  = battery * soh * soc * (1 - c * max(0, T_COLD - temp_c))
 
 `a` et `b_ligne` sont appris par régression (moindres carrés, ridge léger sur les lignes) sur la
-consommation observée. Avant la première nuit, on part d'un a priori volontairement imprécis.
-Les référentiels (bus, services) viennent de app.data (Data 1) si présent, sinon des CSV de data/.
+consommation observée. Aucun fichier d'état : tout passe par app.data (observations en lecture,
+runs du modèle en écriture, coefficients dans coef_json). Le dernier run fait foi ; sans run, on
+part d'un a priori volontairement imprécis.
 """
 import csv
-import json
+import time
 from datetime import date
-from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-STATE_PATH = DATA_DIR / "model_state.json"
-RUNS_PATH = DATA_DIR / "model_runs.csv"
-OBS_PATH = DATA_DIR / "consumption_obs.csv"
+from app import data
+from app.truth import T_COLD
 
-C_COLD = 0.010  # perte de capacité utile par °C sous 5°C (modèle ; la vérité est à 0,012)
-PRIOR = {"a": 0.010, "b_line": {}}  # a priori avant toute observation
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+SEED_OBS = DATA_DIR / "consumption_obs.csv"  # graine du mode fake (la mémoire de data.py est vide au démarrage)
+
+C_COLD = 0.010  # perte de capacité utile par °C sous le seuil (modèle ; la vérité est à 0,012)
+PRIOR = {"a": 0.020, "b_line": {}}  # a priori avant toute observation
 RIDGE = 0.05  # régularisation sur b_ligne (une ligne jamais vue reste à 0)
+
+_coef_cache: dict | None = None
+_ref_cache: dict = {}
 
 
 # ---------- référentiels ----------
-def _read_csv(name: str) -> list[dict]:
-    with open(DATA_DIR / name, encoding="utf-8") as f:
-        return list(csv.DictReader(f))
-
-
-@lru_cache(maxsize=1)
 def _buses() -> dict[str, dict]:
-    try:
-        from app import data  # Data 1
-
-        rows = data.get_buses()
-    except ImportError:
-        rows = _read_csv("buses.csv")
-    return {r["bus_id"]: {k: (float(v) if k != "bus_id" else v) for k, v in r.items()} for r in rows}
+    if "buses" not in _ref_cache:
+        _ref_cache["buses"] = {b["bus_id"]: dict(b) for b in data.get_buses()}
+    return _ref_cache["buses"]
 
 
-@lru_cache(maxsize=1)
 def _services() -> dict[str, dict]:
-    try:
-        from app import data  # Data 1
+    if "services" not in _ref_cache:
+        _ref_cache["services"] = {s["service_id"]: dict(s) for s in data.get_services()}
+    return _ref_cache["services"]
 
-        rows = data.get_services()
-    except ImportError:
-        rows = _read_csv("services.csv")
-    return {r["service_id"]: {"line": r["line"], "distance_km": float(r["distance_km"])} for r in rows}
+
+def reset_cache() -> None:
+    """Oublie référentiels et coefficients (tests, ou changement de données)."""
+    global _coef_cache
+    _coef_cache = None
+    _ref_cache.clear()
+
+
+# ---------- observations et runs (via app.data) ----------
+def _observations() -> list[dict]:
+    obs = data.get_consumption_obs()
+    if not obs and SEED_OBS.exists() and data.DATA_MODE == "fake":
+        with open(SEED_OBS, encoding="utf-8") as f:  # mode fake : la mémoire de data.py démarre vide
+            rows = [
+                {**r, "temp_c": float(r["temp_c"]), "km": float(r["km"]), "kwh": float(r["kwh"])}
+                for r in csv.DictReader(f)
+            ]
+        data.save_consumption_obs(rows)
+        obs = data.get_consumption_obs()
+    return [dict(o) for o in obs]
+
+
+def _latest_runs() -> list[dict]:
+    """Un run par nuit (le plus récent), dans l'ordre chronologique."""
+    by_night: dict[str, dict] = {}
+    for r in sorted(data.get_model_runs(), key=lambda r: (r["night_date"], r["run_id"])):
+        by_night[r["night_date"]] = r
+    return [by_night[k] for k in sorted(by_night)]
+
+
+def ensure_trained() -> None:
+    """Sans aucun run (démarrage du mode fake, base vide), rejoue les nuits observées dans l'ordre."""
+    if _latest_runs():
+        return
+    for night in sorted({o["night_date"] for o in _observations()}):
+        record_outcome(night)
 
 
 # ---------- modèle ----------
 def load_state() -> dict:
-    if STATE_PATH.exists():
-        return json.loads(STATE_PATH.read_text(encoding="utf-8"))
-    return {**PRIOR, "n_obs": 0, "nights": []}
+    """Coefficients courants : {a, b_line}, lus dans le dernier run (data.get_model_runs)."""
+    global _coef_cache
+    if _coef_cache is None:
+        ensure_trained()
+        runs = _latest_runs()
+        _coef_cache = dict(runs[-1]["coef_json"]) if runs else {**PRIOR}
+    return _coef_cache
 
 
 def _predict_row(coef: dict, base: float, line: str, km: float, temp_c: float) -> float:
-    return (base + coef["a"] * max(0.0, 15 - temp_c) + coef["b_line"].get(line, 0.0)) * km
+    return (base + coef["a"] * max(0.0, T_COLD - temp_c) + coef["b_line"].get(line, 0.0)) * km
 
 
 def predict_consumption(bus_id: str, service_id: str, temp_c: float) -> float:
@@ -73,15 +103,7 @@ def predict_consumption(bus_id: str, service_id: str, temp_c: float) -> float:
 def available_kwh(bus_id: str, temp_c: float, soc_morning: float = 1.0) -> float:
     """Énergie utilisable (kWh) au départ. `soc_morning` : charge au départ (1.0 = pleine)."""
     b = _buses()[bus_id]
-    return b["battery_kwh"] * b["soh"] * soc_morning * (1 - C_COLD * max(0.0, 5 - temp_c))
-
-
-def _observations() -> list[dict]:
-    rows = _read_csv("consumption_obs.csv")
-    for r in rows:
-        for k in ("temp_c", "km", "kwh"):
-            r[k] = float(r[k])
-    return rows
+    return b["battery_kwh"] * b["soh"] * soc_morning * (1 - C_COLD * max(0.0, T_COLD - temp_c))
 
 
 def _fit(rows: list[dict]) -> dict:
@@ -93,7 +115,7 @@ def _fit(rows: list[dict]) -> dict:
     y = np.zeros(len(rows))
     buses = _buses()
     for i, r in enumerate(rows):
-        X[i, 0] = max(0.0, 15 - r["temp_c"])
+        X[i, 0] = max(0.0, T_COLD - r["temp_c"])
         X[i, 1 + lines.index(r["line"])] = 1.0
         y[i] = r["kwh"] / r["km"] - buses[r["bus_id"]]["base_kwh_per_km"]
     reg = np.diag([0.0] + [RIDGE] * len(lines))
@@ -112,9 +134,11 @@ def _mape(coef: dict, rows: list[dict]) -> float:
 
 def record_outcome(night: date | str) -> dict:
     """Intègre la consommation observée d'une nuit : mesure l'erreur du modèle AVANT d'apprendre
-    (MAPE honnête), puis réentraîne sur toutes les nuits jusqu'à celle-ci et sauvegarde.
+    (MAPE honnête), puis réentraîne sur toutes les nuits jusqu'à celle-ci et enregistre un run
+    (data.save_model_run, coefficients dans coef_json).
 
-    Retourne {run_id, night_date, mape (en %), coef}. Idempotent : rejouer une nuit donne le même résultat."""
+    Retourne {run_id, night_date, mape (en %), coef}. Rejouer une nuit donne les mêmes coefficients."""
+    global _coef_cache
     night = str(night)
     obs = _observations()
     before = [r for r in obs if r["night_date"] < night]
@@ -123,28 +147,7 @@ def record_outcome(night: date | str) -> dict:
         raise ValueError(f"aucune consommation observée pour la nuit {night}")
     mape = _mape(_fit(before), today)  # prédit avec ce qu'on savait la veille
     coef = _fit(before + today)
-    nights = sorted({r["night_date"] for r in before} | {night})
-    STATE_PATH.write_text(
-        json.dumps({**coef, "n_obs": len(before) + len(today), "nights": nights}, indent=2) + "\n", encoding="utf-8"
-    )
-    run = {"run_id": f"run-{night}", "night_date": night, "mape": round(mape, 2), "coef": coef}
-    _upsert_run(run)
-    return run
-
-
-def _upsert_run(run: dict) -> None:
-    runs = {r["night_date"]: r for r in _read_csv("model_runs.csv")} if RUNS_PATH.exists() else {}
-    runs[run["night_date"]] = {
-        "run_id": run["run_id"], "night_date": run["night_date"], "mape": run["mape"],
-        "coef_json": json.dumps(run["coef"]),
-    }
-    with open(RUNS_PATH, "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=["run_id", "night_date", "mape", "coef_json"])
-        w.writeheader()
-        w.writerows(runs[k] for k in sorted(runs))
-
-
-def reset() -> None:
-    """Repart de l'a priori (efface l'état et l'historique des runs)."""
-    STATE_PATH.unlink(missing_ok=True)
-    RUNS_PATH.unlink(missing_ok=True)
+    run = {"run_id": f"run-{night}-{time.time_ns()}", "night_date": night, "mape": round(mape, 2), "coef_json": coef}
+    data.save_model_run(run)
+    _coef_cache = None
+    return {"run_id": run["run_id"], "night_date": night, "mape": run["mape"], "coef": coef}

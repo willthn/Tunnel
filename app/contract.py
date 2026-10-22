@@ -81,6 +81,9 @@ class Constraints(TypedDict):
     temp_override_c: NotRequired[float]   # ex. -5.0 pour le bouton « vague de froid »
     margin_pct: NotRequired[float]        # marge de sécurité, 15 par défaut
     advance_charging: NotRequired[bool]   # recharger plus tôt dans la nuit
+    charge_start: NotRequired[str]        # "HH:MM" la veille au soir, 21:00 par défaut (19:00 si advance_charging)
+    exclude_buses: NotRequired[list[str]] # bus à ne pas utiliser (panne, maintenance)
+    use_reserve: NotRequired[bool]        # autoriser les bus de réserve B31+ (vrai par défaut)
 
 
 class Assignment(TypedDict):
@@ -106,6 +109,12 @@ class Kpis(TypedDict):
     replan_seconds: float
 
 
+class TraceStep(TypedDict):
+    tool: str        # outil appelé par l'agent (ou étape du repli)
+    summary: str     # une phrase lisible : ce qui a été fait ou constaté
+    seconds: float
+
+
 class Plan(TypedDict):
     plan_id: str
     night_date: str
@@ -116,6 +125,8 @@ class Plan(TypedDict):
     uncovered_services: list[str]
     kpis: Kpis
     explanation: str
+    agent_trace: NotRequired[list[TraceStep]]  # étapes de l'agent, pour l'affichage en démo
+    fallback: NotRequired[bool]                # vrai si le repli sans LLM a été utilisé
 
 
 class PlanCheck(TypedDict):
