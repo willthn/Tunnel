@@ -3,28 +3,18 @@
 Les plans sont jugés sur la consommation RÉELLE du monde simulé (app.truth), pas sur ce que le
 planificateur croyait : un plan naïf qui « voit » tout couvert à 15°C peut échouer par -5°C.
 """
-import csv
-import json
-from pathlib import Path
-
 from app import model, truth
-
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
 def mape_history() -> list[dict]:
-    """Courbe d'erreur de prévision par nuit : [{night_date, mape (en %)}], ordre chronologique."""
-    path = DATA_DIR / "model_runs.csv"
-    if not path.exists():
-        return []
-    with open(path, encoding="utf-8") as f:
-        rows = [{"night_date": r["night_date"], "mape": float(r["mape"])} for r in csv.DictReader(f)]
-    return sorted(rows, key=lambda r: r["night_date"])
+    """Courbe d'erreur de prévision par nuit : [{night_date, mape (en %)}], ordre chronologique.
+    Lue dans la base (data.get_model_runs), un point par nuit."""
+    model.ensure_trained()
+    return [{"night_date": r["night_date"], "mape": float(r["mape"])} for r in model._latest_runs()]
 
 
-def _evaluate(plan: dict) -> dict:
-    """Juge un plan (format section 9) sur la consommation réelle à la température prévue."""
-    temp = plan["forecast_min_temp_c"]
+def _evaluate(plan: dict, temp: float) -> dict:
+    """Juge un plan (format section 9) sur la consommation réelle à la température `temp`."""
     buses, services = model._buses(), model._services()
     charged = {}
     for c in plan.get("charging", []):
@@ -56,9 +46,12 @@ def _evaluate(plan: dict) -> dict:
 
 def compare_plans(naive: dict, agent: dict) -> dict:
     """KPIs de la section 11 : {naive, agent, delta}, à afficher dans l'écran de résultats."""
-    n, a = _evaluate(naive), _evaluate(agent)
+    # Les deux plans sont jugés dans les mêmes conditions : la température de la nuit vécue,
+    # celle du plan agent (le plan naïf ne regarde pas la météo, la sienne n'est que la prévision).
+    temp = agent["forecast_min_temp_c"]
+    n, a = _evaluate(naive, temp), _evaluate(agent, temp)
     return {
-        "temp_c": agent["forecast_min_temp_c"],
+        "temp_c": temp,
         "naive": n,
         "agent": a,
         "delta": {

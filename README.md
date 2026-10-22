@@ -311,7 +311,7 @@ Un fichier n'a qu'un responsable : on évite ainsi les conflits Git.
 
 | Élément | Formule |
 |---|---|
-| Consommation au km | `kwh_per_km = base_bus + a * max(0, 15 - temp_c) + b_ligne` |
+| Consommation au km | `kwh_per_km = base_bus + a * max(0, 5 - temp_c) + b_ligne` (le chauffage et la chimie de la batterie ne pèsent que sous 5°C : un plan naïf tient par temps doux et ne casse qu'avec le froid) |
 | Énergie disponible | `available_kwh = battery_kwh * soh * soc_matin * (1 - c * max(0, 5 - temp_c))` |
 | Énergie nécessaire | `predicted_kwh = kwh_per_km * distance_km` |
 | Apprentissage | Après chaque nuit, régression linéaire sur `consumption_obs`, nouveaux coefficients dans `model_runs`, calcul de la MAPE |
