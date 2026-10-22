@@ -58,3 +58,25 @@ def test_reset_restores_the_normal_night_so_the_next_incident_is_detected(client
 def test_metrics_mape(client):
     history = client.get("/metrics/mape").json()
     assert history and {"night_date", "mape"} <= history[0].keys()
+
+
+def test_health_reports_data_mode_and_llm(client):
+    h = client.get("/health").json()
+    assert h["ok"] is True and h["data_mode"] == contract.DATA_MODE
+    assert h["llm"] is False and h["model"] == "claude-sonnet-5-5"  # AGENT_LLM=off sous pytest
+
+
+@pytest.mark.parametrize("origin", [
+    "https://wattshift.lovable.app",
+    "https://abc-123.lovableproject.com",
+    "https://preview.lovable.dev",
+    "http://localhost:5173",
+])
+def test_cors_allows_lovable_and_localhost(client, origin):
+    r = client.get("/health", headers={"Origin": origin})
+    assert r.headers.get("access-control-allow-origin") == origin
+
+
+def test_cors_rejects_other_origins(client):
+    r = client.get("/health", headers={"Origin": "https://evil.example.com"})
+    assert "access-control-allow-origin" not in r.headers

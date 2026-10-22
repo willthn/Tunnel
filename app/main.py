@@ -3,19 +3,24 @@
 Les routes et leurs réponses font partie du contrat : le front code contre elles.
 Lancer : uv run fastapi dev app/main.py
 """
+import os
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app import metrics
-from app.agent import run_agent
+from app.agent import MODEL, llm_enabled, run_agent
 from app.contract import DATA_MODE, DEFAULT_NIGHT
 from app.planner import run_planner
 
 app = FastAPI(title="WattShift")
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https://.*\.lovable\.app|http://localhost:\d+",
+    # Lovable publie sur *.lovable.app, prévisualise sur *.lovableproject.com / *.lovable.dev.
+    allow_origin_regex=r"https://.*\.(lovable\.app|lovableproject\.com|lovable\.dev)|http://localhost:\d+",
+    # Domaine du front publié (ex. https://wattshift.lovable.app ou un domaine perso), séparés par des virgules.
+    allow_origins=[o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -32,7 +37,8 @@ class Reset(BaseModel):
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "data_mode": DATA_MODE}
+    """Sert aussi de contrôle avant démo : mode des données et agent branché sur Claude ou non."""
+    return {"ok": True, "data_mode": DATA_MODE, "llm": llm_enabled(), "model": MODEL}
 
 
 @app.get("/plan")

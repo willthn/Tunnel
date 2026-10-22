@@ -295,11 +295,16 @@ class _Session:
 
 # --- boucle LLM -----------------------------------------------------------------
 
+def llm_enabled() -> bool:
+    """Vrai si l'agent appellera Claude (clé présente et AGENT_LLM différent de « off »)."""
+    return os.getenv("AGENT_LLM", "on").lower() != "off" and bool(
+        os.getenv("ANTHROPIC_API_KEY") or os.getenv("ANTHROPIC_AUTH_TOKEN")
+    )
+
+
 def _make_client():
-    if os.getenv("AGENT_LLM", "on").lower() == "off":
-        return None
-    if not (os.getenv("ANTHROPIC_API_KEY") or os.getenv("ANTHROPIC_AUTH_TOKEN")):
-        return None  # pas de clé dans .env : repli direct, sans erreur d'authentification dans la trace
+    if not llm_enabled():
+        return None  # pas de clé dans .env ou AGENT_LLM=off : repli direct, sans erreur dans la trace
     headers = {}
     if os.getenv("ANTHROPIC_WORKSPACE_ID"):  # clé non rattachée à un workspace : l'API exige l'en-tête
         headers["anthropic-workspace-id"] = os.environ["ANTHROPIC_WORKSPACE_ID"]
