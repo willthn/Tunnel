@@ -73,6 +73,10 @@ def fetch_forecasts(start: date, end: date) -> list[dict]:
 
 
 def fetch_era5(start: date, end: date) -> list[dict]:
+    """Réanalyse Copernicus ERA5, disponible avec ~5 jours de retard : les dates plus récentes sont ignorées."""
+    end = min(end, date.today() - timedelta(days=5))
+    if start > end:
+        return []
     hourly = _open_meteo("https://archive-api.open-meteo.com/v1/archive", start, end, "era5")
     col = hourly.get("temperature_2m_era5") or hourly["temperature_2m"]
     return [
@@ -85,14 +89,19 @@ def fetch_noaa(start: date, end: date) -> list[dict]:
     """ISD global-hourly : températures en dixièmes de °C, rapports toutes les 30 min (heure UTC).
 
     La station Dijon-Longvic n'a plus de données après le 2025-08-24 : au-delà, la liste est vide."""
-    params = {
-        "dataset": "global-hourly", "stations": NOAA_STATION, "dataTypes": "TMP", "format": "csv",
-        "startDate": (start - timedelta(days=1)).isoformat(), "endDate": (end + timedelta(days=1)).isoformat(),
-    }
-    resp = httpx.get("https://www.ncei.noaa.gov/access/services/data/v1", params=params, timeout=TIMEOUT)
-    resp.raise_for_status()
+    texts = []
+    for year in range(start.year, end.year + 1):  # NCEI renvoie vide si la période chevauche deux années
+        a = max(start - timedelta(days=1), date(year, 1, 1))
+        b = min(end + timedelta(days=1), date(year, 12, 31))
+        params = {
+            "dataset": "global-hourly", "stations": NOAA_STATION, "dataTypes": "TMP", "format": "csv",
+            "startDate": a.isoformat(), "endDate": b.isoformat(),
+        }
+        resp = httpx.get("https://www.ncei.noaa.gov/access/services/data/v1", params=params, timeout=TIMEOUT)
+        resp.raise_for_status()
+        texts.append(resp.text)
     rows: dict[datetime, dict] = {}
-    for r in csv.DictReader(io.StringIO(resp.text)):
+    for r in (row for text in texts for row in csv.DictReader(io.StringIO(text))):
         raw, _, quality = r["TMP"].partition(",")
         if raw.startswith("+9999") or raw.startswith("-9999") or quality not in {"0", "1", "4", "5", "9"}:
             continue  # valeur manquante ou douteuse
