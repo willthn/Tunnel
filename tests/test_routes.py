@@ -101,3 +101,25 @@ def test_unhandled_error_is_logged_and_returned_without_secrets(monkeypatch, cap
     detail = r.json()["detail"]
     assert detail.startswith("ValueError") and "motdepasse" not in detail and "<masqué>" in detail
     assert any("Erreur non gérée" in rec.getMessage() for rec in caplog.records)
+
+
+@pytest.mark.parametrize("call", [
+    lambda c: c.get("/plan", params={"night_date": "abc"}),
+    lambda c: c.get("/plan", params={"night_date": "2026-13-45", "strategy": "naive"}),
+    lambda c: c.post("/incident/cold-snap", json={"night_date": "pas-une-date", "temp_c": -5}),
+    lambda c: c.post("/reset", json={"night_date": "hier"}),
+])
+def test_malformed_night_date_is_a_422_not_a_500(client, call):
+    r = call(client)
+    assert r.status_code == 422 and "AAAA-MM-JJ" in r.json()["detail"]
+
+
+def test_night_without_weather_is_a_404_not_a_500(client, monkeypatch):
+    from app import data
+
+    def no_weather(night):  # ce que lève le mode aiven pour une nuit absente de la base
+        raise LookupError(f"aucune météo disponible pour la nuit du {night}")
+
+    monkeypatch.setattr(data, "get_forecast", no_weather)
+    r = client.get("/plan", params={"night_date": "2030-01-01", "strategy": "naive"})
+    assert r.status_code == 404 and "2030-01-01" in r.json()["detail"]

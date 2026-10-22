@@ -8,6 +8,8 @@ import os
 import re
 from pathlib import Path
 
+from datetime import date
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -42,6 +44,20 @@ async def unhandled_error(request: Request, exc: Exception) -> JSONResponse:
     return JSONResponse(status_code=500, content={"detail": msg[:300]})
 
 
+def _check_night(night_date: str) -> None:
+    """Date mal formée : erreur 422 claire au lieu d'un 500."""
+    try:
+        date.fromisoformat(night_date)
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"night_date doit être au format AAAA-MM-JJ, reçu {night_date!r}") from None
+
+
+@app.exception_handler(LookupError)
+async def no_data(request: Request, exc: LookupError) -> JSONResponse:
+    """Nuit sans données (météo, prix) en base : 404 explicite, pas un 500."""
+    return JSONResponse(status_code=404, content={"detail": str(exc)[:300]})
+
+
 class ColdSnap(BaseModel):
     night_date: str = DEFAULT_NIGHT
     temp_c: float = -5.0
@@ -66,6 +82,7 @@ def get_plan(night_date: str = DEFAULT_NIGHT, strategy: str = "agent") -> dict:
     """
     if strategy not in ("naive", "agent"):
         raise HTTPException(status_code=422, detail="strategy doit valoir 'naive' ou 'agent'")
+    _check_night(night_date)
     constraints = {"night_date": night_date, "strategy": strategy}
     return run_agent(constraints) if strategy == "agent" else run_planner(constraints)
 
@@ -77,6 +94,7 @@ def cold_snap(body: ColdSnap) -> dict:
     Les deux plans sont faits et jugés à la même température (`temp_c`) : le plan naïf l'ignore
     pour décider, mais `compare_plans` le juge sur la consommation réelle à cette température.
     """
+    _check_night(body.night_date)
     naive = run_planner({"night_date": body.night_date, "strategy": "naive", "temp_override_c": body.temp_c})
     agent = run_agent({"night_date": body.night_date, "strategy": "agent", "temp_override_c": body.temp_c})
     return {"naive": naive, "agent": agent, "comparison": metrics.compare_plans(naive, agent)}
@@ -89,6 +107,7 @@ def reset(body: Reset | None = None) -> dict:
     Rapide (repli sans LLM, aucun appel API) : à lancer avant chaque démo.
     """
     night = (body or Reset()).night_date
+    _check_night(night)
     return run_agent({"night_date": night, "strategy": "agent"}, use_llm=False, force=True)
 
 
