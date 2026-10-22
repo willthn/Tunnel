@@ -310,3 +310,24 @@ def test_cache_is_per_night(counted_refresh, saved):
     agent.run_agent(COLD)
     agent.run_agent({**COLD, "night_date": "2026-01-05"})
     assert len(counted_refresh) == 2
+
+
+def test_weather_providers_down_falls_back_to_the_stored_forecast(saved, monkeypatch):
+    def boom(night):
+        raise TimeoutError("fournisseur injoignable")
+
+    monkeypatch.setattr(data, "refresh_forecast", boom, raising=False)
+    plan = agent.run_agent(COLD)  # ne doit pas lever
+    first = plan["agent_trace"][0]
+    assert first["tool"] == "refresh_forecast" and "injoignables" in first["summary"]
+    assert plan["explanation"] and agent._refresh_cache == {}  # l'échec n'est pas mis en cache
+
+
+def test_reset_survives_weather_providers_being_down(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    monkeypatch.setattr(data, "refresh_forecast", lambda night: (_ for _ in ()).throw(TimeoutError("x")), raising=False)
+    r = TestClient(app).post("/reset")
+    assert r.status_code == 200 and r.json()["agent_trace"][0]["tool"] == "refresh_forecast"
