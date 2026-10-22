@@ -36,6 +36,7 @@ def test_data():
         assert rows, f"{fn.__name__} renvoie une liste vide"
         for r in rows:
             assert_shape(r, typed)
+    assert_shape(data.get_depot(), contract.Depot)
     for r in data.get_forecast(NIGHT):
         assert_shape(r, contract.WeatherPoint)
     for r in data.get_prices(NIGHT):

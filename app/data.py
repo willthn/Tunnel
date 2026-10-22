@@ -5,6 +5,7 @@ généré en dur. DATA_MODE=aiven : tout est lu et écrit dans Aiven PostgreSQL.
 Les signatures ne changent pas d'un mode à l'autre.
 """
 import csv
+import json
 import random
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -13,6 +14,7 @@ from app.contract import (
     DATA_MODE,
     Bus,
     Charger,
+    Depot,
     ConsumptionObs,
     ModelRun,
     PricePoint,
@@ -40,6 +42,10 @@ def get_services() -> list[Service]:
 
 def get_chargers() -> list[Charger]:
     return _fake_chargers() if DATA_MODE == "fake" else _aiven_select("chargers")
+
+
+def get_depot() -> Depot:
+    return _fake_depot() if DATA_MODE == "fake" else _aiven_select("depot")[0]
 
 
 def get_forecast(night: date) -> list[WeatherPoint]:
@@ -144,6 +150,12 @@ def _fake_chargers() -> list[Charger]:
         {"charger_id": f"C{i:02d}", "power_kw": 150.0 if i <= 4 else 100.0, "status": "ok"}
         for i in range(1, 11)
     ]
+
+
+def _fake_depot() -> Depot:
+    path = DATA_DIR / "depot.json"  # produit par scripts/simulate_data.py (C)
+    max_kw = json.loads(path.read_text())["max_power_kw"] if path.exists() else 806
+    return {"max_power_kw": float(max_kw)}
 
 
 def _night_hours(night: date) -> list[datetime]:

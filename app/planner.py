@@ -7,7 +7,7 @@ import time
 from datetime import date, datetime, timedelta
 
 from app import data, model
-from app.contract import DEPOT_MAX_POWER_KW, Constraints, Plan, PlanCheck
+from app.contract import Constraints, Plan, PlanCheck
 
 
 def run_planner(constraints: Constraints) -> Plan:
@@ -72,6 +72,6 @@ def check_plan(plan: Plan) -> PlanCheck:
         "uncovered_services": plan["uncovered_services"],
         "low_margin_buses": [a["bus_id"] for a in plan["assignments"] if a["margin_pct"] < 15],
         "peak_power_kw": 0.0,
-        "max_power_kw": DEPOT_MAX_POWER_KW,
+        "max_power_kw": data.get_depot()["max_power_kw"],
         "issues": [f"Service {s} non couvert" for s in plan["uncovered_services"]],
     }

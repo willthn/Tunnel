@@ -1,6 +1,17 @@
+# Secrets : ne jamais commiter (garder .env.example)
 .env
+.env.*
+!.env.example
+
+# Python / uv
 .venv/
 __pycache__/
+*.py[cod]
 .pytest_cache/
-*.pyc
+.ruff_cache/
+.mypy_cache/
+
+# Éditeurs et OS
 .DS_Store
+.idea/
+.vscode/

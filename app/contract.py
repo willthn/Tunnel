@@ -14,7 +14,6 @@ load_dotenv()
 DATA_MODE: Literal["fake", "aiven"] = os.getenv("DATA_MODE", "fake")  # type: ignore[assignment]
 
 DEFAULT_NIGHT = "2026-01-14"
-DEPOT_MAX_POWER_KW = 800.0  # inférieure à la somme des chargeurs (README section 7)
 
 
 # --- Référentiel (app/data.py, A) ---------------------------------------------
@@ -39,6 +38,10 @@ class Charger(TypedDict):
     charger_id: str
     power_kw: float
     status: Literal["ok", "down"]
+
+
+class Depot(TypedDict):
+    max_power_kw: float  # inférieure à la somme des chargeurs (README section 7)
 
 
 class WeatherPoint(TypedDict):

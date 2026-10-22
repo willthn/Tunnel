@@ -194,6 +194,11 @@ CREATE TABLE chargers (
   status      TEXT              -- 'ok' ou 'down'
 );
 
+CREATE TABLE depot (
+  depot_id      TEXT PRIMARY KEY, -- une seule ligne pour la démo
+  max_power_kw  NUMERIC           -- puissance max du dépôt, inférieure à la somme des chargeurs
+);
+
 CREATE TABLE plans (
   plan_id     TEXT PRIMARY KEY,
   night_date  DATE,
@@ -282,7 +287,7 @@ En plus du JSON, les signatures ci-dessous sont figées à 0:20. Chaque module e
 
 | Fichier | Responsable | Fonctions |
 |---|---|---|
-| `app/data.py` | Data 1 | `get_buses() -> list[dict]`, `get_services() -> list[dict]`, `get_chargers() -> list[dict]`, `get_forecast(night: date) -> list[dict]` (`ts`, `temp_c`), `get_prices(night: date) -> list[dict]`, `save_plan(plan: dict, explanation: str) -> None` |
+| `app/data.py` | Data 1 | `get_buses() -> list[dict]`, `get_services() -> list[dict]`, `get_chargers() -> list[dict]`, `get_depot() -> dict` (`{"max_power_kw": 806}` au minimum : `data/depot.json` en mode fake, table `depot` en mode aiven), `get_forecast(night: date) -> list[dict]` (`ts`, `temp_c`), `get_prices(night: date) -> list[dict]`, `save_plan(plan: dict, explanation: str) -> None` |
 | `app/model.py` | Data 2 | `predict_consumption(bus_id: str, service_id: str, temp_c: float) -> float` (kWh), `available_kwh(bus_id: str, temp_c: float) -> float`, `record_outcome(night: date) -> dict` (nouvelle MAPE et coefficients) |
 | `app/metrics.py` | Data 2 | `compare_plans(naive: dict, agent: dict) -> dict` (KPIs section 11), `mape_history() -> list[dict]` |
 | `app/planner.py`, `app/agent.py` | Agent | `run_planner(constraints: dict) -> dict` (plan section 9), `check_plan(plan: dict) -> dict`, boucle agent |
