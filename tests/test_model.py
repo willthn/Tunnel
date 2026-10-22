@@ -91,3 +91,19 @@ def test_compare_plans_flags_dry_bus():
     assert r["agent"]["services_uncovered_real"] == 0
     assert r["delta"]["services_uncovered_real"] == 1
     assert json.dumps(r)  # sérialisable pour l'API
+
+
+def test_impact_metrics():
+    """Le bloc impact (one-pager, vidéo) est calculé : services sauvés, km, surcoût par service sauvé."""
+    long_svc = max(model._services(), key=lambda s: model._services()[s]["distance_km"])
+    weak = min(model._buses(), key=lambda b: model.available_kwh(b, -5, model._buses()[b]["soc_evening"]))
+    bad = _plan("naive", {long_svc: weak})
+    good = _plan("agent", {})
+    good["kpis"]["charging_cost_eur"] = 40.0  # naïf : 10 €
+    imp = metrics.compare_plans(bad, good)["impact"]
+    assert imp["services_saved"] == 1
+    assert imp["km_saved"] == round(model._services()[long_svc]["distance_km"])
+    assert imp["extra_charging_eur"] == 30.0
+    assert imp["extra_eur_per_saved_service"] == 30.0
+    assert imp["reserve_buses_used"] == 0
+    assert set(imp) >= {"peak_power_kw", "max_power_kw", "replan_seconds"}
