@@ -151,10 +151,15 @@ FETCHERS = {
 }
 
 
-def fetch_all(start: date, end: date) -> tuple[list[dict], list[dict]]:
-    """Interroge les 4 fournisseurs. Renvoie (lignes, rapport par fournisseur)."""
+LIVE = ("open-meteo forecast",)  # rafraîchissement à l'exécution : rapide (~1 s). Les mesures (10 Mo) se chargent avec load_data.py
+
+
+def fetch_all(start: date, end: date, only: tuple[str, ...] | None = None) -> tuple[list[dict], list[dict]]:
+    """Interroge les fournisseurs (tous, ou ceux de `only`). Renvoie (lignes, rapport par fournisseur)."""
     rows, report = [], []
     for name, fn in FETCHERS.items():
+        if only is not None and name not in only:
+            continue
         try:
             got = fn(start, end)
             rows += got

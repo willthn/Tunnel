@@ -57,7 +57,7 @@ def forecast(night: date) -> list[dict]:
     """Température retenue (weather_hourly). Si la nuit n'est pas encore en base, on va la chercher."""
     rows = window("weather_hourly", night)
     if not rows:
-        ingest_weather(night - timedelta(days=1), night)
+        ingest_weather(night - timedelta(days=1), night, only=weather.LIVE)
         rows = window("weather_hourly", night)
     if not rows:
         raise LookupError(f"aucune météo disponible pour la nuit du {night}")
@@ -134,9 +134,9 @@ def consolidate_weather(start: date, end: date) -> int:
         return cur.fetchone()["n"]
 
 
-def ingest_weather(start: date, end: date) -> list[dict]:
-    """Interroge les 4 fournisseurs, écrit weather_obs, recalcule weather_hourly. Renvoie le rapport."""
-    rows, report = weather.fetch_all(start, end)
+def ingest_weather(start: date, end: date, only: tuple[str, ...] | None = None) -> list[dict]:
+    """Interroge les fournisseurs, écrit weather_obs, recalcule weather_hourly. Renvoie le rapport."""
+    rows, report = weather.fetch_all(start, end, only)
     if rows:
         store_weather_obs(rows)
         consolidate_weather(start, end)
