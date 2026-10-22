@@ -10,7 +10,7 @@ import random
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from app import aiven
+from app import aiven, weather
 from app.contract import (
     DATA_MODE,
     Bus,
@@ -63,7 +63,7 @@ def refresh_forecast(night: date) -> dict:
     if DATA_MODE == "fake":
         report = [{"provider": "data/weather.csv", "rows": len(_fake_forecast(night)), "error": None}]
     else:
-        report = aiven.ingest_weather(night - timedelta(days=1), night)
+        report = aiven.ingest_weather(night - timedelta(days=1), night, only=weather.LIVE)
     return {
         "min_temp_c": min(p["temp_c"] for p in get_forecast(night)),
         "sources": report,
