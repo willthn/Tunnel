@@ -3,17 +3,21 @@ import json
 
 import pytest
 
-from app import metrics, model, truth
+from app import data, metrics, model, truth
 
 
 @pytest.fixture(autouse=True)
-def replayed():
-    model.reset()
-    runs = [model.record_outcome(n) for n in truth.load_truth()["history_nights"]]
-    yield runs
-    model.reset()
-    for n in truth.load_truth()["history_nights"]:  # remet l'état commité
-        model.record_outcome(n)
+def replayed(monkeypatch):
+    """Magasin en mémoire isolé : les tests n'écrivent jamais dans l'état partagé de app.data."""
+    runs, obs = [], []
+    monkeypatch.setattr(data, "get_model_runs", lambda: list(runs))
+    monkeypatch.setattr(data, "save_model_run", runs.append)
+    monkeypatch.setattr(data, "get_consumption_obs", lambda: list(obs))
+    monkeypatch.setattr(data, "save_consumption_obs", obs.extend)
+    model.reset_cache()
+    out = [model.record_outcome(n) for n in truth.load_truth()["history_nights"]]
+    yield out
+    model.reset_cache()
 
 
 def test_mape_decreases(replayed):
@@ -36,11 +40,25 @@ def test_available_shrinks_when_colder():
 
 
 def test_record_outcome_is_idempotent(replayed):
-    again = model.record_outcome("2026-01-12")
+    nights = list(truth.load_truth()["history_nights"])
+    again = model.record_outcome(nights[1])
     assert again["mape"] == replayed[1]["mape"]
+    assert len(metrics.mape_history()) == 3  # un point par nuit malgré le doublon
 
 
-def test_unknown_night_raises():
+def test_coefficients_stored_in_runs(replayed):
+    assert model.load_state()["a"] == pytest.approx(replayed[-1]["coef"]["a"])
+    assert "a" in data.get_model_runs()[-1]["coef_json"]
+
+
+def test_naive_holds_in_mild_weather():
+    """À +3°C un plan naïf (consommation sans froid, marge 15 %) ne doit pas s'effondrer."""
+    svc = model._services()
+    cold = model.predict_consumption("B20", "S01", 3.0) / model.predict_consumption("B20", "S01", 15.0)
+    assert cold < 1.12
+
+
+def test_unknown_night_raises():  # noqa: D103
     with pytest.raises(ValueError):
         model.record_outcome("2030-01-01")
 

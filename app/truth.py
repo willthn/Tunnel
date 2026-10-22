@@ -10,8 +10,8 @@ from pathlib import Path
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 TRUTH_PATH = DATA_DIR / "sim_truth.json"
 
-# Perte de capacité utile par °C sous 5°C (chimie de la batterie, chauffage)
-TRUE_C_COLD = 0.012
+T_COLD = 5.0  # sous ce seuil : chauffage et chimie de la batterie pèsent sur la consommation et la capacité
+TRUE_C_COLD = 0.012  # perte de capacité utile par °C sous le seuil
 
 
 @lru_cache(maxsize=1)
@@ -21,8 +21,8 @@ def load_truth() -> dict:
 
 def true_kwh_per_km(base_kwh_per_km: float, line: str, temp_c: float) -> float:
     t = load_truth()
-    return base_kwh_per_km + t["a_cold"] * max(0.0, 15 - temp_c) + t["b_line"].get(line, 0.0)
+    return base_kwh_per_km + t["a_cold"] * max(0.0, T_COLD - temp_c) + t["b_line"].get(line, 0.0)
 
 
 def true_available_kwh(battery_kwh: float, soh: float, soc: float, temp_c: float) -> float:
-    return battery_kwh * soh * soc * (1 - TRUE_C_COLD * max(0.0, 5 - temp_c))
+    return battery_kwh * soh * soc * (1 - TRUE_C_COLD * max(0.0, T_COLD - temp_c))
