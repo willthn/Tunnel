@@ -75,9 +75,15 @@ def main() -> None:
         upsert("depot", ["depot_id", "max_power_kw"], ["depot_id"],
                [{"depot_id": "main", "max_power_kw": json.loads(depot_path.read_text())["max_power_kw"]}])
 
-    print("3. Mémoire du modèle (consommation observée, runs)")
+    print("3. Mémoire du modèle (consommation observée, runs) : le jeu de départ remplace l'existant")
+    obs = read_csv("consumption_obs.csv")
+    if obs:  # sinon des nuits retirées du CSV resteraient en base, avec des runs appris dessus
+        with connect().cursor() as cur:
+            cur.execute("DELETE FROM consumption_obs")
+            cur.execute("DELETE FROM model_runs")
+        print("   runs effacés : relancer DATA_MODE=aiven uv run python scripts/replay_nights.py")
     upsert("consumption_obs", ["night_date", "bus_id", "service_id", "line", "temp_c", "km", "kwh"],
-           ["night_date", "bus_id", "service_id"], read_csv("consumption_obs.csv"))
+           ["night_date", "bus_id", "service_id"], obs)
     runs = [{**r, "coef_json": Jsonb(json.loads(r["coef_json"]))} for r in read_csv("model_runs.csv")]
     upsert("model_runs", ["run_id", "night_date", "mape", "coef_json"], ["run_id"], runs)
 
