@@ -3,7 +3,7 @@
 Les routes et leurs réponses font partie du contrat : le front code contre elles.
 Lancer : uv run fastapi dev app/main.py
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -26,6 +26,10 @@ class ColdSnap(BaseModel):
     temp_c: float = -5.0
 
 
+class Reset(BaseModel):
+    night_date: str = DEFAULT_NIGHT
+
+
 @app.get("/health")
 def health() -> dict:
     return {"ok": True, "data_mode": DATA_MODE}
@@ -33,19 +37,37 @@ def health() -> dict:
 
 @app.get("/plan")
 def get_plan(night_date: str = DEFAULT_NIGHT, strategy: str = "agent") -> dict:
-    """Plan de la nuit, format Plan du contrat."""
+    """Plan de la nuit, format Plan du contrat.
+
+    Stratégie « agent » : renvoie le plan enregistré tant que la météo ne change pas de plus de 3°C ;
+    sinon (ou s'il n'y en a pas) l'agent en produit un nouveau, ce qui prend une dizaine de secondes.
+    """
+    if strategy not in ("naive", "agent"):
+        raise HTTPException(status_code=422, detail="strategy doit valoir 'naive' ou 'agent'")
     constraints = {"night_date": night_date, "strategy": strategy}
     return run_agent(constraints) if strategy == "agent" else run_planner(constraints)
 
 
 @app.post("/incident/cold-snap")
 def cold_snap(body: ColdSnap) -> dict:
-    """Bouton « Vague de froid » : renvoie {naive, agent, comparison}."""
-    naive = run_planner({"night_date": body.night_date, "strategy": "naive"})
-    agent = run_agent(
-        {"night_date": body.night_date, "strategy": "agent", "temp_override_c": body.temp_c}
-    )
+    """Bouton « Vague de froid » : renvoie {naive, agent, comparison}.
+
+    Les deux plans sont faits et jugés à la même température (`temp_c`) : le plan naïf l'ignore
+    pour décider, mais `compare_plans` le juge sur la consommation réelle à cette température.
+    """
+    naive = run_planner({"night_date": body.night_date, "strategy": "naive", "temp_override_c": body.temp_c})
+    agent = run_agent({"night_date": body.night_date, "strategy": "agent", "temp_override_c": body.temp_c})
     return {"naive": naive, "agent": agent, "comparison": metrics.compare_plans(naive, agent)}
+
+
+@app.post("/reset")
+def reset(body: Reset | None = None) -> dict:
+    """Remet la nuit normale avant une répétition : replanifie sans incident et enregistre ce plan.
+
+    Rapide (repli sans LLM, aucun appel API) : à lancer avant chaque démo.
+    """
+    night = (body or Reset()).night_date
+    return run_agent({"night_date": night, "strategy": "agent"}, use_llm=False, force=True)
 
 
 @app.get("/metrics/mape")
