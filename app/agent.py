@@ -56,7 +56,9 @@ de dépôt. Dis ce qui a changé (froid détecté, services concernés, bus qui 
 réserve activés, recharge avancée), puis le résultat (services sauvés ou restant non couverts, surcoût de
 recharge). N'utilise que les chiffres renvoyés par les outils, n'en invente aucun. Si des services restent
 non couverts, dis-le franchement. Cite au plus 2 ou 3 exemples de changements de bus au lieu de tous les
-énumérer, et ne mentionne jamais les identifiants internes des plans (p1, p2...)."""
+énumérer, et ne mentionne jamais les identifiants internes des plans (p1, p2...). Écris les nombres à la
+française (6,2 °C, 448,5 €). Le nombre de services « qui ne tiennent plus » est une estimation du modèle de
+prévision de l'agent, pas une mesure : présente-le comme tel (« selon le modèle ») et ne le contredis pas."""
 
 TOOLS = [
     {
@@ -115,6 +117,17 @@ _refresh_cache: dict[str, tuple[float, dict]] = {}
 _now = time.monotonic
 
 
+def fr(x: float, signed: bool = False) -> str:
+    """Nombre au format français (virgule décimale), sans zéros inutiles : 6.2 -> '6,2', 448.5 -> '448,5'."""
+    out = f"{x:+g}" if signed else f"{x:g}"
+    return out.replace(".", ",")
+
+
+def plural(n: int, word: str) -> str:
+    """'0 service', '1 service', '2 services' (pluriel français : 0 et 1 au singulier)."""
+    return f"{n} {word}{'s' if n > 1 else ''}"
+
+
 class _ToolError(Exception):
     """Erreur d'outil renvoyée au LLM (is_error), qui peut se corriger."""
 
@@ -130,6 +143,7 @@ class _Session:
         self.night = constraints["night_date"]
         self.override = constraints.get("temp_override_c")
         self.t0 = time.perf_counter()
+        self._last = self.t0  # dernier événement de la trace : une étape dure depuis celui-ci (attente du modèle comprise)
         self.trace: list[dict] = []
         self.plans: dict[str, tuple[Plan, float]] = {}  # handle -> (plan, marge utilisée)
         self.final_id: str | None = None
@@ -158,17 +172,18 @@ class _Session:
 
     # --- appel d'outil (trace incluse) ---
     def call(self, name: str, args: dict) -> dict:
-        t = time.perf_counter()
         try:
             result, summary = getattr(self, f"_tool_{name}")(args or {})
         except _ToolError as exc:
-            self._log(name, f"Erreur : {exc}", t)
+            self._log(name, f"Erreur : {exc}")
             raise
-        self._log(name, summary, t)
+        self._log(name, summary)
         return result
 
-    def _log(self, tool: str, summary: str, t: float) -> None:
-        self.trace.append({"tool": tool, "summary": summary, "seconds": round(time.perf_counter() - t, 3)})
+    def _log(self, tool: str, summary: str) -> None:
+        now = time.perf_counter()
+        self.trace.append({"tool": tool, "summary": summary, "seconds": round(now - self._last, 3)})
+        self._last = now
 
     # --- outils ---
     def _tool_refresh_forecast(self, args):
@@ -181,7 +196,7 @@ class _Session:
         age = _now() - cached[0] if cached else None
         if cached and not args.get("fresh") and age < REFRESH_TTL_S:
             res = copy.deepcopy(cached[1])
-            summary = f"Prévision du cache (il y a {age:.0f} s) : {res['min_temp_c']:g}°C"
+            summary = f"Prévision récente réutilisée (relevée il y a {age:.0f} s) : {fr(res['min_temp_c'])}°C"
         else:
             night = date.fromisoformat(self.night)
             fetch = getattr(data, "refresh_forecast", None)
@@ -196,12 +211,12 @@ class _Session:
                            "fetched_at": ""}
                     self._forecast_temp = None
                     self.refreshed = res
-                    return res, f"Fournisseurs météo injoignables, prévision de la base : {res['min_temp_c']:g}°C"
+                    return res, f"Fournisseurs météo injoignables, prévision de la base : {fr(res['min_temp_c'])}°C"
             _refresh_cache[self.night] = (_now(), copy.deepcopy(res))
-            summary = f"Prévision rafraîchie : {res['min_temp_c']:g}°C"
+            summary = f"Prévision rafraîchie : {fr(res['min_temp_c'])}°C"
         self._forecast_temp = None  # get_forecast renvoie désormais la valeur consolidée
         self.refreshed = res
-        return res, f"{summary} ({len(res.get('sources', []))} source(s) météo)"
+        return res, f"{summary} ({plural(len(res.get('sources', [])), 'source')} météo)"
 
     def _tool_detect_event(self, _args):
         """Compare la prévision au plan déjà enregistré : baisse de plus de 3°C = vague de froid."""
@@ -212,14 +227,14 @@ class _Session:
         self.saved = copy.deepcopy(saved) if saved else None
         new_temp = self.override if self.override is not None else self.refreshed["min_temp_c"]
         if self.override is not None:
-            reason = f"incident simulé à {new_temp:g}°C"
+            reason = f"incident simulé à {fr(new_temp)}°C"
         elif self.saved is None:
             reason = "aucun plan enregistré pour cette nuit"
         else:
             drop = self.saved["forecast_min_temp_c"] - new_temp
-            reason = (f"prévision en baisse de {drop:.1f}°C ({self.saved['forecast_min_temp_c']:g}°C → {new_temp:g}°C)"
+            reason = (f"prévision en baisse de {fr(round(drop, 1))}°C ({fr(self.saved['forecast_min_temp_c'])}°C → {fr(new_temp)}°C)"
                       if drop > EVENT_DROP_C else
-                      f"écart de {drop:+.1f}°C avec le plan enregistré, sous le seuil de {EVENT_DROP_C:g}°C")
+                      f"écart de {fr(round(drop, 1), signed=True)}°C avec le plan enregistré, sous le seuil de {fr(EVENT_DROP_C)}°C")
         needs_plan = (self.override is not None or self.saved is None
                       or self.saved["forecast_min_temp_c"] - new_temp > EVENT_DROP_C)
         self.detection = {"event": needs_plan, "reason": reason, "new_temp_c": new_temp,
@@ -229,9 +244,9 @@ class _Session:
     def _tool_get_forecast(self, _args):
         f = self.forecast_temp()
         result = {"night_date": self.night, "forecast_min_temp_c": f, "incident_temp_c": self.override}
-        summary = f"Prévision de la nuit : {f:g}°C"
+        summary = f"Prévision de la nuit : {fr(f)}°C"
         if self.override is not None:
-            summary += f", incident de froid annoncé à {self.override:g}°C"
+            summary += f", incident de froid annoncé à {fr(self.override)}°C"
         return result, summary
 
     def _tool_assess_current_plan(self, _args):
@@ -243,7 +258,8 @@ class _Session:
         n = len(res["infeasible"])
         result = {"baseline_min_temp_c": base["forecast_min_temp_c"], "new_temp_c": new_temp,
                   "services_infeasible": n, "examples": res["infeasible"][:5]}
-        return result, f"À {new_temp:g}°C, {n} service(s) du plan actuel ne tiennent plus"
+        return result, (f"Selon le modèle de prévision, à {fr(new_temp)}°C, {plural(n, 'service')} du plan actuel "
+                        f"{'ne tient' if n <= 1 else 'ne tiennent'} plus")
 
     def _tool_run_planner(self, args):
         settings = self._clean(args)
@@ -259,8 +275,9 @@ class _Session:
                   "services_uncovered": k["services_uncovered"], "uncovered_services": plan["uncovered_services"],
                   "charging_cost_eur": k["charging_cost_eur"], "replan_seconds": k["replan_seconds"]}
         mode = "avancée" if settings.get("advance_charging") else "normale"
-        return result, (f"Plan {handle} (marge {margin:g} %, recharge {mode}) : "
-                        f"{k['services_uncovered']} service(s) non couvert(s), {k['charging_cost_eur']:g} € de recharge")
+        return result, (f"Essai {handle[1:]} (marge {fr(margin)} %, recharge {mode}) : "
+                        f"{plural(k['services_uncovered'], 'service')} non couvert{'s' if k['services_uncovered'] > 1 else ''}, "
+                        f"{fr(k['charging_cost_eur'])} € de recharge")
 
     def _tool_check_plan(self, args):
         plan, margin = self._plan(args)
@@ -268,8 +285,9 @@ class _Session:
         result = {"plan_id": args["plan_id"], "ok": chk["ok"], "issues": chk["issues"][:6],
                   "low_margin_buses": chk["low_margin_buses"][:6],
                   "peak_power_kw": chk["peak_power_kw"], "max_power_kw": chk["max_power_kw"]}
-        verdict = "ok" if chk["ok"] else f"{len(chk['issues'])} problème(s)"
-        return result, f"Vérification de {args['plan_id']} : {verdict}, pic {chk['peak_power_kw']:g} kW sur {chk['max_power_kw']:g}"
+        verdict = "aucun problème" if chk["ok"] else plural(len(chk["issues"]), "problème")
+        return result, (f"Vérification de l'essai {args['plan_id'][1:]} : {verdict}, "
+                        f"pic de puissance {fr(chk['peak_power_kw'])} kW sur {fr(chk['max_power_kw'])} kW autorisés")
 
     def _tool_finalize_plan(self, args):
         plan, _ = self._plan(args)
@@ -278,8 +296,10 @@ class _Session:
         saved = self.services_saved(plan)
         short = {k: (v[:8] if isinstance(v, list) else v) for k, v in diff.items()}
         result = {"plan_id": self.final_id, "kpis": plan["kpis"], "services_saved": saved, "diff": short}
-        return result, (f"Plan {self.final_id} retenu : {saved} service(s) sauvé(s), "
-                        f"{len(plan['uncovered_services'])} non couvert(s), {diff['cost_delta_eur']:+g} € de recharge")
+        unc = len(plan["uncovered_services"])
+        return result, (f"Essai {self.final_id[1:]} retenu : {plural(saved, 'service')} sauvé{'s' if saved > 1 else ''}, "
+                        f"{plural(unc, 'service')} non couvert{'s' if unc > 1 else ''}, "
+                        f"{fr(diff['cost_delta_eur'], signed=True)} € de recharge")
 
     # --- utilitaires ---
     def _plan(self, args) -> tuple[Plan, float]:
@@ -395,24 +415,25 @@ def _template_explanation(session: _Session, plan: Plan) -> str:
     a = session.assessment
     if a and session.override is not None:
         parts.append(
-            f"La température minimale passe de {a['baseline_temp_c']:g}°C à {a['new_temp_c']:g}°C : "
-            f"{len(a['infeasible'])} service(s) du plan actuel ne tiennent plus."
+            f"La température minimale passe de {fr(a['baseline_temp_c'])}°C à {fr(a['new_temp_c'])}°C : "
+            f"selon le modèle de prévision, {plural(len(a['infeasible']), 'service')} du plan actuel "
+            f"{'ne tient' if len(a['infeasible']) <= 1 else 'ne tiennent'} plus."
         )
     if diff["reassigned"]:
         r = diff["reassigned"][0]
-        parts.append(f"{len(diff['reassigned'])} service(s) changent de bus (par exemple {r['service_id']} : "
+        parts.append(f"{plural(len(diff['reassigned']), 'service')} changent de bus (par exemple {r['service_id']} : "
                      f"{r['from_bus']} remplacé par {r['to_bus']}).")
     if diff["reserve_activated"]:
         parts.append("Bus de réserve activés : " + ", ".join(diff["reserve_activated"]) + ".")
     if diff["charging_advanced"]:
-        parts.append(f"La recharge est avancée pour {len(diff['charging_advanced'])} bus.")
+        parts.append(f"La recharge est avancée pour {plural(len(diff['charging_advanced']), 'bus')}.")
     saved = session.services_saved(plan)
     if saved:
-        parts.append(f"{saved} service(s) menacés par le froid sont sauvés.")
+        parts.append(f"{plural(saved, 'service')} menacé{'s' if saved > 1 else ''} par le froid {'sont sauvés' if saved > 1 else 'est sauvé'}.")
     unc = plan["uncovered_services"]
     parts.append("Tous les services sont couverts." if not unc else
-                 f"{len(unc)} service(s) restent non couverts ({', '.join(unc)}) : la recharge ou la flotte ne suffit pas.")
-    parts.append(f"Coût de recharge : {plan['kpis']['charging_cost_eur']:g} € ({diff['cost_delta_eur']:+g} € par rapport au plan normal).")
+                 f"{plural(len(unc), 'service')} {'restent non couverts' if len(unc) > 1 else 'reste non couvert'} ({', '.join(unc)}) : la recharge ou la flotte ne suffit pas.")
+    parts.append(f"Coût de recharge : {fr(plan['kpis']['charging_cost_eur'])} € ({fr(diff['cost_delta_eur'], signed=True)} € par rapport au plan normal).")
     return " ".join(parts)
 
 

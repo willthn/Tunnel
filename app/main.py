@@ -95,6 +95,9 @@ def cold_snap(body: ColdSnap) -> dict:
     pour décider, mais `compare_plans` le juge sur la consommation réelle à cette température.
     """
     _check_night(body.night_date)
+    # Repart toujours de la nuit normale : un rechargement de page ou un double clic en plein calcul laissait
+    # le plan « froid » enregistré, et l'agent prétendait alors que le plan tenait déjà (rapide, sans LLM).
+    run_agent({"night_date": body.night_date, "strategy": "agent"}, use_llm=False, force=True)
     naive = run_planner({"night_date": body.night_date, "strategy": "naive", "temp_override_c": body.temp_c})
     agent = run_agent({"night_date": body.night_date, "strategy": "agent", "temp_override_c": body.temp_c})
     return {"naive": naive, "agent": agent, "comparison": metrics.compare_plans(naive, agent)}

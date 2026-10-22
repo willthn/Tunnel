@@ -288,7 +288,7 @@ def test_refresh_is_reused_within_ttl(counted_refresh, saved):
     agent.run_agent(COLD)
     plan = agent.run_agent(COLD)
     assert len(counted_refresh) == 1
-    assert "cache" in plan["agent_trace"][0]["summary"]
+    assert "réutilisée" in plan["agent_trace"][0]["summary"]
 
 
 def test_refresh_is_fetched_again_after_ttl(counted_refresh, saved, monkeypatch):
@@ -331,3 +331,36 @@ def test_reset_survives_weather_providers_being_down(monkeypatch):
     monkeypatch.setattr(data, "refresh_forecast", lambda night: (_ for _ in ()).throw(TimeoutError("x")), raising=False)
     r = TestClient(app).post("/reset")
     assert r.status_code == 200 and r.json()["agent_trace"][0]["tool"] == "refresh_forecast"
+
+
+# --- retours du test externe : français, durées réalistes, pas d'identifiants internes ---
+
+def test_trace_is_written_in_french_without_internal_ids(saved):
+    plan = agent.run_agent(COLD)
+    text = " ".join(s["summary"] for s in plan["agent_trace"])
+    assert "(s)" not in text
+    import re
+    assert not re.search(r"\bp\d\b", text), "identifiant interne (p1, p2...) visible"
+    assert not re.search(r"\d\.\d", text), "nombre à l'anglaise (6.2) dans la trace"
+
+
+def test_fr_and_plural_helpers():
+    assert agent.fr(6.2) == "6,2" and agent.fr(448.5) == "448,5" and agent.fr(5.0) == "5"
+    assert agent.fr(270.4, signed=True) == "+270,4" and agent.fr(-46.7, signed=True) == "-46,7"
+    assert [agent.plural(n, "service") for n in (0, 1, 2)] == ["0 service", "1 service", "2 services"]
+
+
+def test_step_durations_cover_the_model_wait(saved, monkeypatch):
+    """Une étape dure depuis la précédente : l'attente du LLM n'est plus comptée pour zéro."""
+    clock = [0.0]
+    monkeypatch.setattr(agent.time, "perf_counter", lambda: clock[0])
+
+    class Slow(FakeClient):
+        def _create(self, **kw):
+            clock[0] += 2.0  # chaque appel au modèle prend 2 s
+            return super()._create(**kw)
+
+    plan = agent.run_agent(COLD, client=Slow(*happy_script().replies))
+    assert plan["fallback"] is False
+    waits = [s["seconds"] for s in plan["agent_trace"]]
+    assert sum(waits) >= 6.0 and max(waits) >= 2.0
