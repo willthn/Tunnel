@@ -9,7 +9,7 @@ from decimal import Decimal
 from psycopg.types.json import Jsonb
 
 from app import prices, weather
-from app.db import connect
+from app.db import execute
 
 ORDER = {
     "buses": "bus_id", "services": "start_time, service_id", "chargers": "charger_id",
@@ -26,9 +26,7 @@ def _clean(value):
 
 
 def _rows(sql: str, params: tuple = ()) -> list[dict]:
-    with connect().cursor() as cur:
-        cur.execute(sql, params)
-        return [{k: _clean(v) for k, v in row.items()} for row in cur.fetchall()]
+    return [{k: _clean(v) for k, v in row.items()} for row in execute(sql, params)]
 
 
 def select(table: str) -> list[dict]:
@@ -65,14 +63,14 @@ def forecast(night: date) -> list[dict]:
 
 
 def store_prices(rows: list[dict]) -> None:
-    with connect().cursor() as cur:
-        cur.executemany(
-            """INSERT INTO energy_price (ts, eur_kwh, tranche, source)
-               VALUES (%(ts)s, %(eur_kwh)s, %(tranche)s, %(source)s)
-               ON CONFLICT (ts) DO UPDATE
-               SET eur_kwh = EXCLUDED.eur_kwh, tranche = EXCLUDED.tranche, source = EXCLUDED.source""",
-            rows,
-        )
+    execute(
+        """INSERT INTO energy_price (ts, eur_kwh, tranche, source)
+           VALUES (%(ts)s, %(eur_kwh)s, %(tranche)s, %(source)s)
+           ON CONFLICT (ts) DO UPDATE
+           SET eur_kwh = EXCLUDED.eur_kwh, tranche = EXCLUDED.tranche, source = EXCLUDED.source""",
+        rows,
+        many=True,
+    )
 
 
 def ingest_prices(start: date, end: date) -> dict:
@@ -96,14 +94,13 @@ def night_prices(night: date) -> list[dict]:
 
 
 def save_plan(plan: dict, explanation: str) -> None:
-    with connect().cursor() as cur:
-        cur.execute(
-            """INSERT INTO plans (plan_id, night_date, strategy, payload, explanation)
-               VALUES (%s, %s, %s, %s, %s)
-               ON CONFLICT (plan_id) DO UPDATE
-               SET payload = EXCLUDED.payload, explanation = EXCLUDED.explanation, created_at = now()""",
-            (plan["plan_id"], plan["night_date"], plan["strategy"], Jsonb({**plan, "explanation": explanation}), explanation),
-        )
+    execute(
+        """INSERT INTO plans (plan_id, night_date, strategy, payload, explanation)
+           VALUES (%s, %s, %s, %s, %s)
+           ON CONFLICT (plan_id) DO UPDATE
+           SET payload = EXCLUDED.payload, explanation = EXCLUDED.explanation, created_at = now()""",
+        (plan["plan_id"], plan["night_date"], plan["strategy"], Jsonb({**plan, "explanation": explanation}), explanation),
+    )
 
 
 def get_plan(night_date: str, strategy: str) -> dict | None:
@@ -116,53 +113,50 @@ def get_plan(night_date: str, strategy: str) -> dict | None:
 
 
 def save_consumption_obs(rows: list[dict]) -> None:
-    with connect().cursor() as cur:
-        cur.executemany(
-            """INSERT INTO consumption_obs (night_date, bus_id, service_id, line, temp_c, km, kwh)
-               VALUES (%(night_date)s, %(bus_id)s, %(service_id)s, %(line)s, %(temp_c)s, %(km)s, %(kwh)s)
-               ON CONFLICT (night_date, bus_id, service_id) DO UPDATE
-               SET line = EXCLUDED.line, temp_c = EXCLUDED.temp_c, km = EXCLUDED.km, kwh = EXCLUDED.kwh""",
-            rows,
-        )
+    execute(
+        """INSERT INTO consumption_obs (night_date, bus_id, service_id, line, temp_c, km, kwh)
+           VALUES (%(night_date)s, %(bus_id)s, %(service_id)s, %(line)s, %(temp_c)s, %(km)s, %(kwh)s)
+           ON CONFLICT (night_date, bus_id, service_id) DO UPDATE
+           SET line = EXCLUDED.line, temp_c = EXCLUDED.temp_c, km = EXCLUDED.km, kwh = EXCLUDED.kwh""",
+        rows,
+        many=True,
+    )
 
 
 def save_model_run(run: dict) -> None:
-    with connect().cursor() as cur:
-        cur.execute(
-            """INSERT INTO model_runs (run_id, night_date, mape, coef_json) VALUES (%s, %s, %s, %s)
-               ON CONFLICT (run_id) DO UPDATE
-               SET night_date = EXCLUDED.night_date, mape = EXCLUDED.mape, coef_json = EXCLUDED.coef_json""",
-            (run["run_id"], run["night_date"], run["mape"], Jsonb(run["coef_json"])),
-        )
+    execute(
+        """INSERT INTO model_runs (run_id, night_date, mape, coef_json) VALUES (%s, %s, %s, %s)
+           ON CONFLICT (run_id) DO UPDATE
+           SET night_date = EXCLUDED.night_date, mape = EXCLUDED.mape, coef_json = EXCLUDED.coef_json""",
+        (run["run_id"], run["night_date"], run["mape"], Jsonb(run["coef_json"])),
+    )
 
 
 # --- Météo : sources multiples -> weather_obs -> weather_hourly ---------------------
 
 def store_weather_obs(rows: list[dict]) -> None:
-    with connect().cursor() as cur:
-        cur.executemany(
-            """INSERT INTO weather_obs (ts, source, kind, temp_c, fetched_at)
-               VALUES (%(ts)s, %(source)s, %(kind)s, %(temp_c)s, now())
-               ON CONFLICT (ts, source, kind) DO UPDATE SET temp_c = EXCLUDED.temp_c, fetched_at = now()""",
-            rows,
-        )
+    execute(
+        """INSERT INTO weather_obs (ts, source, kind, temp_c, fetched_at)
+           VALUES (%(ts)s, %(source)s, %(kind)s, %(temp_c)s, now())
+           ON CONFLICT (ts, source, kind) DO UPDATE SET temp_c = EXCLUDED.temp_c, fetched_at = now()""",
+        rows,
+        many=True,
+    )
 
 
 def consolidate_weather(start: date, end: date) -> int:
     """weather_hourly = médiane des prévisions ; à défaut, moyenne des mesures puis de la réanalyse."""
     lo, hi = datetime.combine(start, datetime.min.time()), datetime.combine(end, datetime.min.time()) + timedelta(days=1)
-    with connect().cursor() as cur:
-        for kinds, conflict in ((("forecast",), "DO UPDATE SET temp_c = EXCLUDED.temp_c"),
-                                (("observed",), "DO NOTHING"), (("reanalysis",), "DO NOTHING")):
-            cur.execute(
-                f"""INSERT INTO weather_hourly (ts, temp_c)
-                    SELECT ts, percentile_cont(0.5) WITHIN GROUP (ORDER BY temp_c)
-                    FROM weather_obs WHERE kind = ANY(%s) AND ts >= %s AND ts < %s GROUP BY ts
-                    ON CONFLICT (ts) {conflict}""",
-                (list(kinds), lo, hi),
-            )
-        cur.execute("SELECT count(*) AS n FROM weather_hourly WHERE ts >= %s AND ts < %s", (lo, hi))
-        return cur.fetchone()["n"]
+    for kinds, conflict in ((("forecast",), "DO UPDATE SET temp_c = EXCLUDED.temp_c"),
+                            (("observed",), "DO NOTHING"), (("reanalysis",), "DO NOTHING")):
+        execute(
+            f"""INSERT INTO weather_hourly (ts, temp_c)
+                SELECT ts, percentile_cont(0.5) WITHIN GROUP (ORDER BY temp_c)
+                FROM weather_obs WHERE kind = ANY(%s) AND ts >= %s AND ts < %s GROUP BY ts
+                ON CONFLICT (ts) {conflict}""",
+            (list(kinds), lo, hi),
+        )
+    return execute("SELECT count(*) AS n FROM weather_hourly WHERE ts >= %s AND ts < %s", (lo, hi))[0]["n"]
 
 
 def ingest_weather(start: date, end: date, only: tuple[str, ...] | None = None) -> list[dict]:
