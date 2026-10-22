@@ -19,8 +19,8 @@ from app import data, planner
 from app.contract import Constraints, Plan
 
 MODEL = "claude-sonnet-5-5"
-MAX_TOOL_ROUNDS = 4          # tours d'outils maximum avant de passer au repli
-DEADLINE_S = 20.0            # budget de temps pour toute la boucle LLM
+MAX_TOOL_ROUNDS = 8          # tours d'outils maximum avant de passer au repli
+DEADLINE_S = 30.0            # budget de temps pour toute la boucle LLM
 LLM_TIMEOUT_S = 15.0         # délai maximum d'un appel API
 MARGIN_BOUNDS = (15.0, 30.0)
 HARDEN_STEPS = [             # repli déterministe : du plus léger au plus prudent
@@ -32,6 +32,9 @@ HARDEN_STEPS = [             # repli déterministe : du plus léger au plus prud
 SYSTEM = """Tu es l'agent de planification nocturne d'un dépôt de bus électriques.
 Chaque nuit tu décides quel bus part sur quel service et quand le recharger. Tu ne calcules rien
 toi-même : tu utilises les outils, qui renvoient des faits chiffrés.
+
+Appelle ensemble, dans le même tour, les outils indépendants (get_forecast, assess_current_plan et un
+premier run_planner par défaut peuvent partir en parallèle) : chaque tour coûte plusieurs secondes.
 
 Méthode :
 1. get_forecast : lis la météo de la nuit (et l'éventuel incident de froid).
@@ -46,7 +49,8 @@ Explication : en français, un seul paragraphe de 5 à 8 phrases, sans liste ni 
 de dépôt. Dis ce qui a changé (froid détecté, services concernés, bus qui changent de service, bus de
 réserve activés, recharge avancée), puis le résultat (services sauvés ou restant non couverts, surcoût de
 recharge). N'utilise que les chiffres renvoyés par les outils, n'en invente aucun. Si des services restent
-non couverts, dis-le franchement."""
+non couverts, dis-le franchement. Cite au plus 2 ou 3 exemples de changements de bus au lieu de tous les
+énumérer, et ne mentionne jamais les identifiants internes des plans (p1, p2...)."""
 
 TOOLS = [
     {
