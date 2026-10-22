@@ -24,6 +24,7 @@ DEADLINE_S = 30.0            # budget de temps pour toute la boucle LLM
 LLM_TIMEOUT_S = 15.0         # délai maximum d'un appel API
 MARGIN_BOUNDS = (15.0, 30.0)
 EVENT_DROP_C = 3.0           # baisse de la prévision (°C) au-delà de laquelle on parle de vague de froid
+REFRESH_TTL_S = float(os.getenv("REFRESH_TTL_S", "600"))  # météo réutilisée 10 min par nuit
 HARDEN_STEPS = [             # repli déterministe : du plus léger au plus prudent
     {"advance_charging": True},
     {"advance_charging": True, "margin_pct": 20.0},
@@ -108,6 +109,12 @@ TOOLS = [
 ]
 
 
+# Dernière météo rafraîchie par nuit : {night_date: (instant, résultat)}. Évite d'interroger les
+# fournisseurs à chaque GET /plan (plusieurs secondes en mode aiven).
+_refresh_cache: dict[str, tuple[float, dict]] = {}
+_now = time.monotonic
+
+
 class _ToolError(Exception):
     """Erreur d'outil renvoyée au LLM (is_error), qui peut se corriger."""
 
@@ -164,19 +171,29 @@ class _Session:
         self.trace.append({"tool": tool, "summary": summary, "seconds": round(time.perf_counter() - t, 3)})
 
     # --- outils ---
-    def _tool_refresh_forecast(self, _args):
-        """Premier outil de la boucle : interroge les fournisseurs météo (data.refresh_forecast)."""
+    def _tool_refresh_forecast(self, args):
+        """Premier outil de la boucle : interroge les fournisseurs météo (data.refresh_forecast).
+
+        Résultat réutilisé pendant REFRESH_TTL_S pour la même nuit, sauf si `fresh` est vrai.
+        """
         from datetime import date
-        night = date.fromisoformat(self.night)
-        fetch = getattr(data, "refresh_forecast", None)
-        if fetch is None:  # data.py d'avant refresh_forecast : on relit la prévision en base
-            res = {"min_temp_c": min(p["temp_c"] for p in data.get_forecast(night)), "sources": [], "fetched_at": ""}
+        cached = _refresh_cache.get(self.night)
+        age = _now() - cached[0] if cached else None
+        if cached and not args.get("fresh") and age < REFRESH_TTL_S:
+            res = copy.deepcopy(cached[1])
+            summary = f"Prévision du cache (il y a {age:.0f} s) : {res['min_temp_c']:g}°C"
         else:
-            res = fetch(night)
+            night = date.fromisoformat(self.night)
+            fetch = getattr(data, "refresh_forecast", None)
+            if fetch is None:  # data.py d'avant refresh_forecast : on relit la prévision en base
+                res = {"min_temp_c": min(p["temp_c"] for p in data.get_forecast(night)), "sources": [], "fetched_at": ""}
+            else:
+                res = fetch(night)
+            _refresh_cache[self.night] = (_now(), copy.deepcopy(res))
+            summary = f"Prévision rafraîchie : {res['min_temp_c']:g}°C"
         self._forecast_temp = None  # get_forecast renvoie désormais la valeur consolidée
         self.refreshed = res
-        n = len(res.get("sources", []))
-        return res, f"Prévision rafraîchie : {res['min_temp_c']:g}°C ({n} source(s) météo)"
+        return res, f"{summary} ({len(res.get('sources', []))} source(s) météo)"
 
     def _tool_detect_event(self, _args):
         """Compare la prévision au plan déjà enregistré : baisse de plus de 3°C = vague de froid."""
@@ -393,10 +410,10 @@ def _template_explanation(session: _Session, plan: Plan) -> str:
 
 # --- point d'entrée -------------------------------------------------------------
 
-def _start(constraints: Constraints) -> _Session:
+def _start(constraints: Constraints, fresh: bool = False) -> _Session:
     """Étapes communes : rafraîchir la météo (premier outil), puis détecter l'événement."""
     session = _Session(constraints)
-    session.call("refresh_forecast", {})
+    session.call("refresh_forecast", {"fresh": fresh})
     session.call("detect_event", {})
     return session
 
@@ -405,12 +422,13 @@ def run_agent(constraints: Constraints, client=None, *, use_llm: bool = True, fo
     """Produit, vérifie, explique et enregistre le plan de la nuit.
 
     Sans événement (pas d'incident, prévision stable) et avec un plan déjà enregistré, renvoie ce plan
-    tel quel. `force` ignore ce plan, `use_llm=False` impose le repli (réinitialisation rapide).
+    tel quel. `force` ignore ce plan et le cache météo, `use_llm=False` impose le repli
+    (réinitialisation rapide).
     """
     if constraints["strategy"] != "agent":
         return planner.run_planner(constraints)
 
-    session = _start(constraints)
+    session = _start(constraints, fresh=force)
     if session.saved is not None and not session.detection["event"] and not force:
         plan = session.saved
         plan["agent_trace"] = session.trace

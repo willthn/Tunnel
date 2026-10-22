@@ -268,3 +268,45 @@ def test_the_saved_plan_is_the_baseline_of_the_diff(stored, saved, monkeypatch):
     plan = agent.run_agent(COLD)
     assert plan["explanation"]
     assert "3°C" in plan["explanation"]  # « passe de 3°C à -5°C », tiré du plan enregistré
+
+
+# --- cache de la météo rafraîchie -------------------------------------------------
+
+@pytest.fixture
+def counted_refresh(monkeypatch):
+    calls = []
+
+    def fake(night):
+        calls.append(night)
+        return {"min_temp_c": 5.0, "sources": ["open-meteo"], "fetched_at": "2026-01-13T20:00:00"}
+
+    monkeypatch.setattr(data, "refresh_forecast", fake, raising=False)
+    return calls
+
+
+def test_refresh_is_reused_within_ttl(counted_refresh, saved):
+    agent.run_agent(COLD)
+    plan = agent.run_agent(COLD)
+    assert len(counted_refresh) == 1
+    assert "cache" in plan["agent_trace"][0]["summary"]
+
+
+def test_refresh_is_fetched_again_after_ttl(counted_refresh, saved, monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr(agent, "_now", lambda: clock[0])
+    agent.run_agent(COLD)
+    clock[0] += agent.REFRESH_TTL_S + 1
+    agent.run_agent(COLD)
+    assert len(counted_refresh) == 2
+
+
+def test_force_bypasses_the_weather_cache(counted_refresh, saved):
+    agent.run_agent(COLD)
+    agent.run_agent(COLD, force=True)
+    assert len(counted_refresh) == 2
+
+
+def test_cache_is_per_night(counted_refresh, saved):
+    agent.run_agent(COLD)
+    agent.run_agent({**COLD, "night_date": "2026-01-05"})
+    assert len(counted_refresh) == 2
