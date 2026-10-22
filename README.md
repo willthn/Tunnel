@@ -78,11 +78,41 @@ Open-Meteo / CSV prix / GTFS / flotte simulée
 | Composant | Choix |
 |---|---|
 | Hébergement | Aiven Runtime |
-| Bases | Aiven ClickHouse et Aiven PostgreSQL |
+| Bases | Aiven ClickHouse et Aiven PostgreSQL : toute la data passe par Aiven, aucune base locale |
 | Backend | Python, FastAPI |
+| Environnement Python | uv (dépendances, venv, lancement des scripts) : pas de pip ni de venv à la main |
 | Agent | Claude via API, avec appel d'outils |
 | Front | React (Vite) ou HTML simple, selon le temps |
-| Bonus si temps | OpenSearch (historique des incidents), Valkey (état live), OR-Tools (solveur) |
+| Bonus si temps | Aiven for OpenSearch (historique des incidents), Aiven for Valkey (état live), OR-Tools (solveur) |
+
+### Environnement Python avec uv
+
+Tout le Python du projet (backend, scripts de chargement, modèle, agent) est géré par [uv](https://docs.astral.sh/uv/). Les dépendances sont déclarées dans `pyproject.toml`, figées dans `uv.lock`, et les deux fichiers sont commités.
+
+| Action | Commande |
+|---|---|
+| Installer uv (une fois) | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+| Installer l'environnement | `uv sync` |
+| Ajouter une dépendance | `uv add fastapi` (`uv add --dev pytest` pour le dev) |
+| Lancer le backend | `uv run fastapi dev app/main.py` |
+| Lancer un script | `uv run python scripts/load_data.py` |
+| Lancer les tests | `uv run pytest` |
+
+Dépendances de base : `fastapi`, `uvicorn`, `psycopg[binary]` (Postgres), `clickhouse-connect` (ClickHouse), `anthropic`, `httpx` (Open-Meteo), `pandas`.
+
+### Data sur Aiven
+
+| Service Aiven | Contenu |
+|---|---|
+| Aiven for PostgreSQL | Référentiel (bus, services, chargeurs) et plans générés |
+| Aiven for ClickHouse | Séries temporelles : météo, prix, consommation observée, runs du modèle |
+
+| Règle | Détail |
+|---|---|
+| Une seule source de vérité | Le backend et l'agent lisent et écrivent uniquement dans Aiven. Les CSV ne servent qu'à l'import initial |
+| Connexion par variables d'environnement | `PG_URI` et `CLICKHOUSE_URL`, `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD`, copiés depuis la console Aiven dans un `.env` non commité (`.env.example` commité) |
+| TLS obligatoire | Connexions en `sslmode=require` (Postgres) et HTTPS (ClickHouse), comme l'impose Aiven |
+| Chargement | `uv run python scripts/load_data.py` crée les tables (section 8) et charge CSV, météo et flotte simulée dans Aiven |
 
 ## 7. Données
 
@@ -93,6 +123,8 @@ Open-Meteo / CSV prix / GTFS / flotte simulée
 | Prix de l'électricité | 3 tranches : heures creuses, pleines, pointe | Simplifié |
 | Flotte (30 bus) | Générée en Python | Simulé |
 | Consommation observée | Générée à partir d'un modèle « vrai » caché + bruit, pour que l'agent ait quelque chose à apprendre | Simulé |
+
+Toutes ces données sont chargées dans Aiven (PostgreSQL ou ClickHouse, voir section 8) avant la démo. Rien n'est lu directement depuis un fichier pendant l'exécution.
 
 **Paramètres réalistes de la flotte (ordres de grandeur)**
 
@@ -300,6 +332,8 @@ Toutes les valeurs sont calculées en live sur les données. Aucun chiffre en du
 | Le contrat JSON ne change pas sans prévenir les deux autres | Permet de travailler en parallèle |
 | Si une source réelle bloque plus de 15 min, passer en CSV figé | Le temps est la contrainte n°1 |
 | Déployer sur Aiven dès la première heure | Éviter la mauvaise surprise de fin |
+| Python uniquement via uv (`uv add`, `uv run`), `uv.lock` commité | Même environnement sur les 3 machines et sur Aiven Runtime |
+| Data uniquement dans Aiven, identifiants dans `.env` jamais commité | Une seule source de vérité, pas de secret sur GitHub |
 | À chaque checkpoint, garder la version la plus simple qui marche | Mieux vaut une boucle complète qu'une brique parfaite |
 | Gel du code à 4:30 | La dernière heure sert à la démo, pas au code |
 
