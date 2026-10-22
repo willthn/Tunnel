@@ -56,7 +56,6 @@ def test_coefficients_stored_in_runs(replayed):
 
 def test_naive_holds_in_mild_weather():
     """À +3°C un plan naïf (consommation sans froid, marge 15 %) ne doit pas s'effondrer."""
-    svc = model._services()
     cold = model.predict_consumption("B20", "S01", 3.0) / model.predict_consumption("B20", "S01", 15.0)
     assert cold < 1.12
 
@@ -84,7 +83,6 @@ def test_compare_plans_flags_dry_bus():
     # B02 (petite batterie, SoC faible) sur le service le plus long par -5°C : panne sèche réelle
     long_svc = max(model._services(), key=lambda s: model._services()[s]["distance_km"])
     weak = min(model._buses(), key=lambda b: model.available_kwh(b, -5, model._buses()[b]["soc_evening"]))
-    strong = max(model._buses(), key=lambda b: model.available_kwh(b, -5, 1.0))
     bad = _plan("naive", {long_svc: weak})
     good = _plan("agent", {})
     good["charging"] = []
