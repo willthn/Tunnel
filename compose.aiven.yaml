@@ -1,0 +1,9 @@
+# Manifest Aiven Runtime : Runtime > Deploy application > choisir ce fichier > Scan.
+# Secrets à saisir dans la console, jamais ici : PG_URI, ANTHROPIC_API_KEY, ANTHROPIC_WORKSPACE_ID.
+services:
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DATA_MODE: aiven
