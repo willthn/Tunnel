@@ -382,7 +382,7 @@ Rien de tout ça n'est du code produit, mais chaque point retire un risque du bu
 | Tâche | Pourquoi |
 |---|---|
 | Créer le service Aiven PostgreSQL et partager `PG_URI` (hors GitHub) | Le provisionnement prend plusieurs minutes |
-| Télécharger le GTFS de Dijon (Divia) et en extraire 30 services en CSV | Choisir les lignes prend du temps. Privilégier des lignes à fort kilométrage (Lianes, tram exclu : il n'est pas à batterie) et prendre la longueur de service dans `stop_times` + `shapes` |
+| Télécharger le GTFS de Dijon (Divia) et lancer `uv run scripts/extract_services.py <dossier_gtfs>` : produit `data/services.csv` (30 vacations de 110 à 175 km, fait) | Choisir les lignes prend du temps. Privilégier des lignes à fort kilométrage (Lianes, tram exclu : il n'est pas à batterie) et prendre la longueur de service dans `stop_times` + `shapes` |
 | Récupérer la nuit froide sur Open-Meteo et la figer en CSV | Repli prêt si l'API bloque |
 | Vérifier qu'Aiven Runtime accepte une app FastAPI + uv (un « hello world ») | C'est le principal risque inconnu de la stack |
 | Installer uv sur les 3 machines, accès au dépôt GitHub pour les 3 | Ne pas perdre les 20 premières minutes |
