@@ -1,0 +1,16 @@
+/* Correctif provisoire (A), en attendant son intégration dans le dépôt tunnel-front.
+   Chargé après le CSS du build : un prochain build de static/ l'écrase si index.html est régénéré. */
+
+/* Page défilable au lieu d'être bloquée à la hauteur de l'écran */
+html, body, #root { height: auto; min-height: 100%; }
+.app { height: auto; min-height: 100vh; overflow: visible; }
+.sidebar { position: sticky; top: 0; height: 100vh; align-self: start; }
+.main { grid-template-rows: auto 460px auto; }
+.bottom { min-height: auto; overflow: visible; }
+.orders-list { max-height: 900px; }
+.chart-wrap { min-height: 260px; }
+
+/* Boutons sans action : « Replier », « Notifications », « Réglages » */
+.sb-head > .ico,
+.profile > .ico,
+.sb-spacer + .sb-nav > .nav-item:first-child { display: none; }
