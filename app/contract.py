@@ -125,10 +125,21 @@ class PlanCheck(TypedDict):
 
 # --- Métriques (app/metrics.py, C) ---------------------------------------------
 
+class PlanEvaluation(TypedDict):
+    strategy: str
+    services_uncovered_planned: int   # ce que le plan annonce
+    services_uncovered_real: int      # jugé sur la consommation réelle simulée
+    services_failing_en_route: list   # [{service_id, bus_id, missing_kwh}]
+    charging_cost_eur: float
+    replan_seconds: float | None
+
+
 class Comparison(TypedDict):
-    services_uncovered: dict      # {"naive": int, "agent": int}
-    charging_cost_eur: dict       # {"naive": float, "agent": float}
-    replan_seconds: dict          # {"naive": float, "agent": float}
+    temp_c: float
+    naive: PlanEvaluation
+    agent: PlanEvaluation
+    delta: dict                       # {services_uncovered_real, charging_cost_eur}
+    mape_history: list                # [MapePoint]
 
 
 class MapePoint(TypedDict):

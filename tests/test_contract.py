@@ -49,8 +49,7 @@ def test_model():
     cold = model.predict_consumption(bus, service, -5.0)
     assert 0 < warm <= cold, "il doit falloir plus d'énergie par grand froid"
     assert model.available_kwh(bus, -5.0) <= model.available_kwh(bus, 15.0)
-    run = model.record_outcome(NIGHT)
-    assert {"night_date", "mape", "coef_json"} <= run.keys()
+    # record_outcome écrit dans data/ : couvert par tests/test_model.py (C).
 
 
 def _assert_plan(plan: dict) -> None:
@@ -75,7 +74,10 @@ def test_planner_and_agent():
 def test_metrics():
     naive = run_planner({"night_date": contract.DEFAULT_NIGHT, "strategy": "naive"})
     agent = run_planner({"night_date": contract.DEFAULT_NIGHT, "strategy": "agent"})
-    assert_shape(metrics.compare_plans(naive, agent), contract.Comparison)
+    comparison = metrics.compare_plans(naive, agent)
+    assert_shape(comparison, contract.Comparison)
+    for side in ("naive", "agent"):
+        assert_shape(comparison[side], contract.PlanEvaluation)
     history = metrics.mape_history()
     assert history
     for p in history:

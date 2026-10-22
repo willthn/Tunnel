@@ -8,212 +8,212 @@
       {
         "bus_id": "B01",
         "service_id": "S01",
-        "predicted_kwh": 143.6,
-        "available_kwh": 350.6,
-        "margin_pct": 59.0
+        "predicted_kwh": 158.64977294161216,
+        "available_kwh": 283.5,
+        "margin_pct": 44.0
       },
       {
         "bus_id": "B02",
         "service_id": "S02",
-        "predicted_kwh": 161.8,
-        "available_kwh": 315.9,
-        "margin_pct": 48.8
+        "predicted_kwh": 125.12242939496353,
+        "available_kwh": 329.0,
+        "margin_pct": 62.0
       },
       {
         "bus_id": "B03",
         "service_id": "S03",
-        "predicted_kwh": 135.5,
-        "available_kwh": 305.9,
-        "margin_pct": 55.7
+        "predicted_kwh": 126.71499335994442,
+        "available_kwh": 340.20000000000005,
+        "margin_pct": 62.8
       },
       {
         "bus_id": "B04",
         "service_id": "S04",
-        "predicted_kwh": 142.9,
-        "available_kwh": 299.2,
-        "margin_pct": 52.2
+        "predicted_kwh": 166.51722631715347,
+        "available_kwh": 364.5,
+        "margin_pct": 54.3
       },
       {
         "bus_id": "B05",
         "service_id": "S05",
-        "predicted_kwh": 137.8,
-        "available_kwh": 401.8,
-        "margin_pct": 65.7
+        "predicted_kwh": 143.02635378062755,
+        "available_kwh": 396.0,
+        "margin_pct": 63.9
       },
       {
         "bus_id": "B06",
         "service_id": "S06",
-        "predicted_kwh": 167.8,
-        "available_kwh": 364.8,
-        "margin_pct": 54.0
+        "predicted_kwh": 145.55404552083434,
+        "available_kwh": 332.5,
+        "margin_pct": 56.2
       },
       {
         "bus_id": "B07",
         "service_id": "S07",
-        "predicted_kwh": 156.4,
-        "available_kwh": 376.2,
-        "margin_pct": 58.4
+        "predicted_kwh": 160.86893154745815,
+        "available_kwh": 332.0,
+        "margin_pct": 51.5
       },
       {
         "bus_id": "B08",
         "service_id": "S08",
-        "predicted_kwh": 150.6,
-        "available_kwh": 311.6,
-        "margin_pct": 51.7
+        "predicted_kwh": 157.25349664464756,
+        "available_kwh": 308.0,
+        "margin_pct": 48.9
       },
       {
         "bus_id": "B09",
         "service_id": "S09",
-        "predicted_kwh": 148.5,
-        "available_kwh": 349.6,
-        "margin_pct": 57.5
+        "predicted_kwh": 141.8090047452278,
+        "available_kwh": 384.0,
+        "margin_pct": 63.1
       },
       {
         "bus_id": "B10",
         "service_id": "S10",
-        "predicted_kwh": 144.5,
-        "available_kwh": 350.6,
-        "margin_pct": 58.8
+        "predicted_kwh": 169.04217177820345,
+        "available_kwh": 344.4,
+        "margin_pct": 50.9
       },
       {
         "bus_id": "B11",
         "service_id": "S11",
-        "predicted_kwh": 197.7,
-        "available_kwh": 368.6,
-        "margin_pct": 46.4
+        "predicted_kwh": 158.6355604604907,
+        "available_kwh": 368.0,
+        "margin_pct": 56.9
       },
       {
         "bus_id": "B12",
         "service_id": "S12",
-        "predicted_kwh": 159.6,
-        "available_kwh": 359.1,
-        "margin_pct": 55.6
+        "predicted_kwh": 157.06826315913278,
+        "available_kwh": 361.0,
+        "margin_pct": 56.5
       },
       {
         "bus_id": "B13",
         "service_id": "S13",
-        "predicted_kwh": 234.9,
-        "available_kwh": 380.0,
-        "margin_pct": 38.2
+        "predicted_kwh": 250.71207509386704,
+        "available_kwh": 308.0,
+        "margin_pct": 18.6
       },
       {
         "bus_id": "B14",
         "service_id": "S14",
-        "predicted_kwh": 134.2,
-        "available_kwh": 326.8,
-        "margin_pct": 58.9
+        "predicted_kwh": 113.6624533626217,
+        "available_kwh": 330.6,
+        "margin_pct": 65.6
       },
       {
         "bus_id": "B15",
         "service_id": "S15",
-        "predicted_kwh": 146.7,
-        "available_kwh": 330.6,
-        "margin_pct": 55.6
+        "predicted_kwh": 156.94437030955316,
+        "available_kwh": 322.0,
+        "margin_pct": 51.3
       },
       {
         "bus_id": "B16",
         "service_id": "S16",
-        "predicted_kwh": 150.1,
-        "available_kwh": 397.6,
-        "margin_pct": 62.2
+        "predicted_kwh": 196.14008858093223,
+        "available_kwh": 338.2,
+        "margin_pct": 42.0
       },
       {
         "bus_id": "B17",
         "service_id": "S17",
-        "predicted_kwh": 160.1,
-        "available_kwh": 363.4,
-        "margin_pct": 55.9
+        "predicted_kwh": 171.33105413080844,
+        "available_kwh": 378.0,
+        "margin_pct": 54.7
       },
       {
         "bus_id": "B18",
         "service_id": "S18",
-        "predicted_kwh": 160.0,
-        "available_kwh": 401.8,
-        "margin_pct": 60.2
+        "predicted_kwh": 166.83839503308894,
+        "available_kwh": 297.5,
+        "margin_pct": 43.9
       },
       {
         "bus_id": "B19",
         "service_id": "S19",
-        "predicted_kwh": 134.1,
-        "available_kwh": 282.6,
-        "margin_pct": 52.5
+        "predicted_kwh": 145.42857953025992,
+        "available_kwh": 324.0,
+        "margin_pct": 55.1
       },
       {
         "bus_id": "B20",
         "service_id": "S20",
-        "predicted_kwh": 152.3,
-        "available_kwh": 307.8,
-        "margin_pct": 50.5
+        "predicted_kwh": 150.69499335994445,
+        "available_kwh": 336.0,
+        "margin_pct": 55.2
       },
       {
         "bus_id": "B21",
         "service_id": "S21",
-        "predicted_kwh": 149.8,
-        "available_kwh": 367.6,
-        "margin_pct": 59.2
+        "predicted_kwh": 174.01018075233094,
+        "available_kwh": 348.59999999999997,
+        "margin_pct": 50.1
       },
       {
         "bus_id": "B22",
         "service_id": "S22",
-        "predicted_kwh": 149.8,
-        "available_kwh": 380.5,
-        "margin_pct": 60.6
+        "predicted_kwh": 166.33110044500708,
+        "available_kwh": 382.5,
+        "margin_pct": 56.5
       },
       {
         "bus_id": "B23",
         "service_id": "S23",
-        "predicted_kwh": 213.7,
-        "available_kwh": 389.0,
-        "margin_pct": 45.1
+        "predicted_kwh": 194.72267023374982,
+        "available_kwh": 365.4,
+        "margin_pct": 46.7
       },
       {
         "bus_id": "B24",
         "service_id": "S24",
-        "predicted_kwh": 174.3,
-        "available_kwh": 376.2,
-        "margin_pct": 53.7
+        "predicted_kwh": 148.53849664464755,
+        "available_kwh": 344.4,
+        "margin_pct": 56.9
       },
       {
         "bus_id": "B25",
         "service_id": "S25",
-        "predicted_kwh": 152.3,
-        "available_kwh": 384.8,
-        "margin_pct": 60.4
+        "predicted_kwh": 134.5443703095532,
+        "available_kwh": 364.8,
+        "margin_pct": 63.1
       },
       {
         "bus_id": "B26",
         "service_id": "S26",
-        "predicted_kwh": 148.6,
-        "available_kwh": 309.2,
-        "margin_pct": 51.9
+        "predicted_kwh": 141.7454757487607,
+        "available_kwh": 386.40000000000003,
+        "margin_pct": 63.3
       },
       {
         "bus_id": "B27",
         "service_id": "S27",
-        "predicted_kwh": 137.9,
-        "available_kwh": 292.6,
-        "margin_pct": 52.9
+        "predicted_kwh": 137.78319595517561,
+        "available_kwh": 436.5,
+        "margin_pct": 68.4
       },
       {
         "bus_id": "B28",
         "service_id": "S28",
-        "predicted_kwh": 138.7,
-        "available_kwh": 376.2,
-        "margin_pct": 63.1
+        "predicted_kwh": 164.51783903836312,
+        "available_kwh": 427.5,
+        "margin_pct": 61.5
       },
       {
         "bus_id": "B29",
         "service_id": "S29",
-        "predicted_kwh": 210.0,
-        "available_kwh": 350.6,
-        "margin_pct": 40.1
+        "predicted_kwh": 235.54261642919283,
+        "available_kwh": 356.0,
+        "margin_pct": 33.8
       },
       {
         "bus_id": "B30",
         "service_id": "S30",
-        "predicted_kwh": 145.7,
-        "available_kwh": 371.9,
-        "margin_pct": 60.8
+        "predicted_kwh": 178.68500072487313,
+        "available_kwh": 396.0,
+        "margin_pct": 54.9
       }
     ],
     "charging": [
@@ -473,200 +473,178 @@
     "forecast_min_temp_c": -5.0,
     "assignments": [
       {
-        "bus_id": "B01",
-        "service_id": "S01",
-        "predicted_kwh": 217.2,
-        "available_kwh": 315.5,
-        "margin_pct": 31.2
-      },
-      {
         "bus_id": "B02",
         "service_id": "S02",
-        "predicted_kwh": 232.7,
-        "available_kwh": 284.3,
-        "margin_pct": 18.1
+        "predicted_kwh": 196.6621791538312,
+        "available_kwh": 296.1,
+        "margin_pct": 33.6
       },
       {
         "bus_id": "B03",
         "service_id": "S03",
-        "predicted_kwh": 207.4,
-        "available_kwh": 275.3,
-        "margin_pct": 24.7
+        "predicted_kwh": 199.34510340302853,
+        "available_kwh": 306.18000000000006,
+        "margin_pct": 34.9
       },
       {
         "bus_id": "B04",
         "service_id": "S04",
-        "predicted_kwh": 216.8,
-        "available_kwh": 269.3,
-        "margin_pct": 19.5
+        "predicted_kwh": 241.1463302146344,
+        "available_kwh": 328.05,
+        "margin_pct": 26.5
       },
       {
         "bus_id": "B05",
         "service_id": "S05",
-        "predicted_kwh": 205.0,
-        "available_kwh": 361.7,
-        "margin_pct": 43.3
+        "predicted_kwh": 210.87099368742838,
+        "available_kwh": 356.40000000000003,
+        "margin_pct": 40.8
       },
       {
         "bus_id": "B06",
         "service_id": "S06",
-        "predicted_kwh": 242.9,
-        "available_kwh": 328.3,
+        "predicted_kwh": 221.3946608452224,
+        "available_kwh": 299.25,
         "margin_pct": 26.0
       },
       {
         "bus_id": "B07",
         "service_id": "S07",
-        "predicted_kwh": 237.2,
-        "available_kwh": 338.6,
-        "margin_pct": 29.9
+        "predicted_kwh": 242.5248017210006,
+        "available_kwh": 298.8,
+        "margin_pct": 18.8
       },
       {
         "bus_id": "B08",
         "service_id": "S08",
-        "predicted_kwh": 225.3,
-        "available_kwh": 280.4,
-        "margin_pct": 19.7
+        "predicted_kwh": 232.67008296961814,
+        "available_kwh": 277.2,
+        "margin_pct": 16.1
       },
       {
         "bus_id": "B09",
         "service_id": "S09",
-        "predicted_kwh": 216.0,
-        "available_kwh": 314.6,
-        "margin_pct": 31.3
+        "predicted_kwh": 209.95652250875543,
+        "available_kwh": 345.6,
+        "margin_pct": 39.2
       },
       {
         "bus_id": "B10",
         "service_id": "S10",
-        "predicted_kwh": 221.9,
-        "available_kwh": 315.5,
-        "margin_pct": 29.7
+        "predicted_kwh": 247.18465881371515,
+        "available_kwh": 309.96,
+        "margin_pct": 20.3
+      },
+      {
+        "bus_id": "B11",
+        "service_id": "S11",
+        "predicted_kwh": 246.71244119664107,
+        "available_kwh": 331.2,
+        "margin_pct": 25.5
       },
       {
         "bus_id": "B12",
         "service_id": "S12",
-        "predicted_kwh": 233.3,
-        "available_kwh": 323.2,
-        "margin_pct": 27.8
+        "predicted_kwh": 231.45506477123226,
+        "available_kwh": 324.90000000000003,
+        "margin_pct": 28.8
       },
       {
         "bus_id": "B14",
         "service_id": "S14",
-        "predicted_kwh": 200.7,
-        "available_kwh": 294.1,
-        "margin_pct": 31.8
+        "predicted_kwh": 180.8407619846236,
+        "available_kwh": 297.54,
+        "margin_pct": 39.2
       },
       {
         "bus_id": "B15",
         "service_id": "S15",
-        "predicted_kwh": 213.9,
-        "available_kwh": 297.5,
-        "margin_pct": 28.1
-      },
-      {
-        "bus_id": "B16",
-        "service_id": "S16",
-        "predicted_kwh": 228.4,
-        "available_kwh": 357.8,
-        "margin_pct": 36.2
+        "predicted_kwh": 224.78901021635403,
+        "available_kwh": 289.8,
+        "margin_pct": 22.4
       },
       {
         "bus_id": "B17",
         "service_id": "S17",
-        "predicted_kwh": 241.5,
-        "available_kwh": 327.0,
-        "margin_pct": 26.1
-      },
-      {
-        "bus_id": "B18",
-        "service_id": "S18",
-        "predicted_kwh": 239.9,
-        "available_kwh": 361.7,
-        "margin_pct": 33.7
+        "predicted_kwh": 253.5321044464591,
+        "available_kwh": 340.2,
+        "margin_pct": 25.5
       },
       {
         "bus_id": "B19",
         "service_id": "S19",
-        "predicted_kwh": 201.7,
-        "available_kwh": 254.4,
-        "margin_pct": 20.7
+        "predicted_kwh": 213.69724843647828,
+        "available_kwh": 291.6,
+        "margin_pct": 26.7
       },
       {
         "bus_id": "B20",
         "service_id": "S20",
-        "predicted_kwh": 224.2,
-        "available_kwh": 277.0,
-        "margin_pct": 19.1
+        "predicted_kwh": 223.32510340302855,
+        "available_kwh": 302.40000000000003,
+        "margin_pct": 26.1
       },
       {
         "bus_id": "B21",
         "service_id": "S21",
-        "predicted_kwh": 223.5,
-        "available_kwh": 330.9,
-        "margin_pct": 32.5
+        "predicted_kwh": 248.3969823644304,
+        "available_kwh": 313.73999999999995,
+        "margin_pct": 20.8
       },
       {
         "bus_id": "B22",
         "service_id": "S22",
-        "predicted_kwh": 226.6,
-        "available_kwh": 342.4,
-        "margin_pct": 33.8
+        "predicted_kwh": 243.86783176706518,
+        "available_kwh": 344.25,
+        "margin_pct": 29.2
       },
       {
         "bus_id": "B24",
         "service_id": "S24",
-        "predicted_kwh": 249.0,
-        "available_kwh": 338.6,
-        "margin_pct": 26.5
+        "predicted_kwh": 223.95508296961813,
+        "available_kwh": 309.96,
+        "margin_pct": 27.7
       },
       {
         "bus_id": "B25",
         "service_id": "S25",
-        "predicted_kwh": 219.5,
-        "available_kwh": 346.3,
-        "margin_pct": 36.6
+        "predicted_kwh": 202.38901021635402,
+        "available_kwh": 328.32,
+        "margin_pct": 38.4
       },
       {
         "bus_id": "B26",
         "service_id": "S26",
-        "predicted_kwh": 221.1,
-        "available_kwh": 278.3,
-        "margin_pct": 20.6
+        "predicted_kwh": 214.92076593395305,
+        "available_kwh": 347.76000000000005,
+        "margin_pct": 38.2
       },
       {
         "bus_id": "B27",
         "service_id": "S27",
-        "predicted_kwh": 204.6,
-        "available_kwh": 263.3,
-        "margin_pct": 22.3
+        "predicted_kwh": 205.1432312912136,
+        "available_kwh": 392.85,
+        "margin_pct": 47.8
       },
       {
         "bus_id": "B28",
         "service_id": "S28",
-        "predicted_kwh": 214.4,
-        "available_kwh": 338.6,
-        "margin_pct": 36.7
+        "predicted_kwh": 240.9036345048594,
+        "available_kwh": 384.75,
+        "margin_pct": 37.4
       },
       {
         "bus_id": "B30",
         "service_id": "S30",
-        "predicted_kwh": 221.7,
-        "available_kwh": 334.7,
-        "margin_pct": 33.8
+        "predicted_kwh": 255.4342496194416,
+        "available_kwh": 356.40000000000003,
+        "margin_pct": 28.3
       }
     ],
     "charging": [
       {
-        "bus_id": "B01",
-        "charger_id": "C01",
-        "start": "2026-01-13T23:00:00",
-        "end": "2026-01-14T03:00:00",
-        "kwh": 200.0,
-        "cost_eur": 26.0
-      },
-      {
         "bus_id": "B02",
-        "charger_id": "C02",
+        "charger_id": "C01",
         "start": "2026-01-13T23:00:00",
         "end": "2026-01-14T03:00:00",
         "kwh": 200.0,
@@ -674,7 +652,7 @@
       },
       {
         "bus_id": "B03",
-        "charger_id": "C03",
+        "charger_id": "C02",
         "start": "2026-01-13T23:00:00",
         "end": "2026-01-14T03:00:00",
         "kwh": 200.0,
@@ -682,7 +660,7 @@
       },
       {
         "bus_id": "B04",
-        "charger_id": "C04",
+        "charger_id": "C03",
         "start": "2026-01-13T23:00:00",
         "end": "2026-01-14T03:00:00",
         "kwh": 200.0,
@@ -690,7 +668,7 @@
       },
       {
         "bus_id": "B05",
-        "charger_id": "C05",
+        "charger_id": "C04",
         "start": "2026-01-13T23:00:00",
         "end": "2026-01-14T03:00:00",
         "kwh": 200.0,
@@ -698,7 +676,7 @@
       },
       {
         "bus_id": "B06",
-        "charger_id": "C06",
+        "charger_id": "C05",
         "start": "2026-01-13T23:00:00",
         "end": "2026-01-14T03:00:00",
         "kwh": 200.0,
@@ -706,7 +684,7 @@
       },
       {
         "bus_id": "B07",
-        "charger_id": "C07",
+        "charger_id": "C06",
         "start": "2026-01-13T23:00:00",
         "end": "2026-01-14T03:00:00",
         "kwh": 200.0,
@@ -714,7 +692,7 @@
       },
       {
         "bus_id": "B08",
-        "charger_id": "C08",
+        "charger_id": "C07",
         "start": "2026-01-13T23:00:00",
         "end": "2026-01-14T03:00:00",
         "kwh": 200.0,
@@ -722,7 +700,7 @@
       },
       {
         "bus_id": "B09",
-        "charger_id": "C09",
+        "charger_id": "C08",
         "start": "2026-01-13T23:00:00",
         "end": "2026-01-14T03:00:00",
         "kwh": 200.0,
@@ -730,6 +708,14 @@
       },
       {
         "bus_id": "B10",
+        "charger_id": "C09",
+        "start": "2026-01-13T23:00:00",
+        "end": "2026-01-14T03:00:00",
+        "kwh": 200.0,
+        "cost_eur": 26.0
+      },
+      {
+        "bus_id": "B11",
         "charger_id": "C10",
         "start": "2026-01-13T23:00:00",
         "end": "2026-01-14T03:00:00",
@@ -761,24 +747,8 @@
         "cost_eur": 26.0
       },
       {
-        "bus_id": "B16",
-        "charger_id": "C04",
-        "start": "2026-01-13T23:00:00",
-        "end": "2026-01-14T03:00:00",
-        "kwh": 200.0,
-        "cost_eur": 26.0
-      },
-      {
         "bus_id": "B17",
-        "charger_id": "C05",
-        "start": "2026-01-13T23:00:00",
-        "end": "2026-01-14T03:00:00",
-        "kwh": 200.0,
-        "cost_eur": 26.0
-      },
-      {
-        "bus_id": "B18",
-        "charger_id": "C06",
+        "charger_id": "C04",
         "start": "2026-01-13T23:00:00",
         "end": "2026-01-14T03:00:00",
         "kwh": 200.0,
@@ -786,70 +756,6 @@
       },
       {
         "bus_id": "B19",
-        "charger_id": "C07",
-        "start": "2026-01-13T23:00:00",
-        "end": "2026-01-14T03:00:00",
-        "kwh": 200.0,
-        "cost_eur": 26.0
-      },
-      {
-        "bus_id": "B20",
-        "charger_id": "C08",
-        "start": "2026-01-13T23:00:00",
-        "end": "2026-01-14T03:00:00",
-        "kwh": 200.0,
-        "cost_eur": 26.0
-      },
-      {
-        "bus_id": "B21",
-        "charger_id": "C09",
-        "start": "2026-01-13T23:00:00",
-        "end": "2026-01-14T03:00:00",
-        "kwh": 200.0,
-        "cost_eur": 26.0
-      },
-      {
-        "bus_id": "B22",
-        "charger_id": "C10",
-        "start": "2026-01-13T23:00:00",
-        "end": "2026-01-14T03:00:00",
-        "kwh": 200.0,
-        "cost_eur": 26.0
-      },
-      {
-        "bus_id": "B24",
-        "charger_id": "C01",
-        "start": "2026-01-13T23:00:00",
-        "end": "2026-01-14T03:00:00",
-        "kwh": 200.0,
-        "cost_eur": 26.0
-      },
-      {
-        "bus_id": "B25",
-        "charger_id": "C02",
-        "start": "2026-01-13T23:00:00",
-        "end": "2026-01-14T03:00:00",
-        "kwh": 200.0,
-        "cost_eur": 26.0
-      },
-      {
-        "bus_id": "B26",
-        "charger_id": "C03",
-        "start": "2026-01-13T23:00:00",
-        "end": "2026-01-14T03:00:00",
-        "kwh": 200.0,
-        "cost_eur": 26.0
-      },
-      {
-        "bus_id": "B27",
-        "charger_id": "C04",
-        "start": "2026-01-13T23:00:00",
-        "end": "2026-01-14T03:00:00",
-        "kwh": 200.0,
-        "cost_eur": 26.0
-      },
-      {
-        "bus_id": "B28",
         "charger_id": "C05",
         "start": "2026-01-13T23:00:00",
         "end": "2026-01-14T03:00:00",
@@ -857,8 +763,72 @@
         "cost_eur": 26.0
       },
       {
-        "bus_id": "B30",
+        "bus_id": "B20",
         "charger_id": "C06",
+        "start": "2026-01-13T23:00:00",
+        "end": "2026-01-14T03:00:00",
+        "kwh": 200.0,
+        "cost_eur": 26.0
+      },
+      {
+        "bus_id": "B21",
+        "charger_id": "C07",
+        "start": "2026-01-13T23:00:00",
+        "end": "2026-01-14T03:00:00",
+        "kwh": 200.0,
+        "cost_eur": 26.0
+      },
+      {
+        "bus_id": "B22",
+        "charger_id": "C08",
+        "start": "2026-01-13T23:00:00",
+        "end": "2026-01-14T03:00:00",
+        "kwh": 200.0,
+        "cost_eur": 26.0
+      },
+      {
+        "bus_id": "B24",
+        "charger_id": "C09",
+        "start": "2026-01-13T23:00:00",
+        "end": "2026-01-14T03:00:00",
+        "kwh": 200.0,
+        "cost_eur": 26.0
+      },
+      {
+        "bus_id": "B25",
+        "charger_id": "C10",
+        "start": "2026-01-13T23:00:00",
+        "end": "2026-01-14T03:00:00",
+        "kwh": 200.0,
+        "cost_eur": 26.0
+      },
+      {
+        "bus_id": "B26",
+        "charger_id": "C01",
+        "start": "2026-01-13T23:00:00",
+        "end": "2026-01-14T03:00:00",
+        "kwh": 200.0,
+        "cost_eur": 26.0
+      },
+      {
+        "bus_id": "B27",
+        "charger_id": "C02",
+        "start": "2026-01-13T23:00:00",
+        "end": "2026-01-14T03:00:00",
+        "kwh": 200.0,
+        "cost_eur": 26.0
+      },
+      {
+        "bus_id": "B28",
+        "charger_id": "C03",
+        "start": "2026-01-13T23:00:00",
+        "end": "2026-01-14T03:00:00",
+        "kwh": 200.0,
+        "cost_eur": 26.0
+      },
+      {
+        "bus_id": "B30",
+        "charger_id": "C04",
         "start": "2026-01-13T23:00:00",
         "end": "2026-01-14T03:00:00",
         "kwh": 200.0,
@@ -866,30 +836,81 @@
       }
     ],
     "uncovered_services": [
-      "S11",
+      "S01",
       "S13",
+      "S16",
+      "S18",
       "S23",
       "S29"
     ],
     "kpis": {
-      "services_uncovered": 4,
-      "charging_cost_eur": 676.0,
+      "services_uncovered": 6,
+      "charging_cost_eur": 624.0,
       "replan_seconds": 0.0
     },
-    "explanation": "Plan factice : Service S11 non couvert, Service S13 non couvert, Service S23 non couvert, Service S29 non couvert"
+    "explanation": "Plan factice : Service S01 non couvert, Service S13 non couvert, Service S16 non couvert, Service S18 non couvert, Service S23 non couvert, Service S29 non couvert"
   },
   "comparison": {
-    "services_uncovered": {
-      "naive": 0,
-      "agent": 4
+    "temp_c": -5.0,
+    "naive": {
+      "strategy": "naive",
+      "services_uncovered_planned": 0,
+      "services_uncovered_real": 5,
+      "services_failing_en_route": [
+        {
+          "service_id": "S13",
+          "bus_id": "B13",
+          "missing_kwh": 93.3
+        },
+        {
+          "service_id": "S16",
+          "bus_id": "B16",
+          "missing_kwh": 19.2
+        },
+        {
+          "service_id": "S18",
+          "bus_id": "B18",
+          "missing_kwh": 26.8
+        },
+        {
+          "service_id": "S21",
+          "bus_id": "B21",
+          "missing_kwh": 7.0
+        },
+        {
+          "service_id": "S29",
+          "bus_id": "B29",
+          "missing_kwh": 51.2
+        }
+      ],
+      "charging_cost_eur": 780.0,
+      "replan_seconds": 0.0
     },
-    "charging_cost_eur": {
-      "naive": 780.0,
-      "agent": 676.0
+    "agent": {
+      "strategy": "agent",
+      "services_uncovered_planned": 6,
+      "services_uncovered_real": 6,
+      "services_failing_en_route": [],
+      "charging_cost_eur": 624.0,
+      "replan_seconds": 0.0
     },
-    "replan_seconds": {
-      "naive": 0.0,
-      "agent": 0.0
-    }
+    "delta": {
+      "services_uncovered_real": -1,
+      "charging_cost_eur": -156.0
+    },
+    "mape_history": [
+      {
+        "night_date": "2026-01-11",
+        "mape": 12.54
+      },
+      {
+        "night_date": "2026-01-12",
+        "mape": 3.58
+      },
+      {
+        "night_date": "2026-01-13",
+        "mape": 3.16
+      }
+    ]
   }
 }

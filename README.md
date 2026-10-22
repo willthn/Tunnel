@@ -78,7 +78,7 @@ Open-Meteo / CSV prix / GTFS / flotte simulée
 | Composant | Choix |
 |---|---|
 | Hébergement | Backend sur Aiven Runtime, front publié par Lovable |
-| Base | Aiven PostgreSQL seul : toute la data passe par Aiven, aucune base locale. À cette échelle (30 bus, 30 services, 3 nuits), ClickHouse n'apporte rien et coûte une deuxième connexion et un deuxième schéma |
+| Base | Aiven PostgreSQL seul : toute la data passe par Aiven, aucune base locale. À cette échelle (40 bus, 30 services, 3 nuits), ClickHouse n'apporte rien et coûte une deuxième connexion et un deuxième schéma |
 | Backend | Python, FastAPI |
 | Environnement Python | uv (dépendances, venv, lancement des scripts) : pas de pip ni de venv à la main |
 | Agent | Claude via API, avec appel d'outils |
@@ -126,7 +126,7 @@ Dépendances de base : `fastapi`, `uvicorn`, `psycopg[binary]` (Postgres), `anth
 
 ### Terrain de démo : Dijon
 
-Le réseau est celui de Divia Mobilités (agglomération de Dijon : 2 lignes de tram, 7 Lianes, lignes de bus, navettes). Les horaires viennent du GTFS ouvert, la météo d'Open-Meteo pour Dijon (climat continental, vraies nuits froides en hiver). Le tram est exclu du périmètre (pas de batterie). Le plan du réseau sert de support visuel pour le pitch. La flotte de 30 bus et le dépôt restent fictifs : aucune donnée interne de l'opérateur n'est utilisée, et le projet n'est pas affilié à Divia.
+Le réseau est celui de Divia Mobilités (agglomération de Dijon : 2 lignes de tram, 7 Lianes, lignes de bus, navettes). Les horaires viennent du GTFS ouvert, la météo d'Open-Meteo pour Dijon (climat continental, vraies nuits froides en hiver). Le tram est exclu du périmètre (pas de batterie). Le plan du réseau sert de support visuel pour le pitch. La flotte de 40 bus et le dépôt restent fictifs : aucune donnée interne de l'opérateur n'est utilisée, et le projet n'est pas affilié à Divia.
 
 ### Ressources et crédits
 
@@ -150,7 +150,7 @@ Crédits fournis à chaque participant par l'organisation, et ce qu'on en fait.
 | Services (lignes, horaires, distance) | GTFS du réseau Divia Mobilités (Dijon, transport.data.gouv.fr), 30 services extraits et figés en CSV | Réel |
 | Météo horaire | Open-Meteo (API historique, gratuite, sans clé), une vraie nuit froide de l'hiver dernier | Réel |
 | Prix de l'électricité | 3 tranches : heures creuses, pleines, pointe | Simplifié |
-| Flotte (30 bus) | Générée en Python | Simulé |
+| Flotte (40 bus : 30 titulaires + 10 de réserve) | Générée en Python, avec des états de santé de batterie (SoH) variés d'un bus à l'autre | Simulé |
 | Consommation observée | Générée à partir d'un modèle « vrai » caché + bruit, pour que l'agent ait quelque chose à apprendre | Simulé |
 
 Toutes ces données sont chargées dans Aiven PostgreSQL (voir section 8) avant la démo. Rien n'est lu directement depuis un fichier pendant l'exécution.
@@ -160,7 +160,8 @@ Toutes ces données sont chargées dans Aiven PostgreSQL (voir section 8) avant 
 | Paramètre | Valeur |
 |---|---|
 | Bus standard 12 m | Batterie 350 à 450 kWh |
-| État de santé batterie (SoH) | 80 à 100 % |
+| État de santé batterie (SoH) | 80 à 100 %, différent selon les bus (certains vieux bus à 80 % rendent des services longs infaisables par grand froid) |
+| Bus de réserve | 10 bus en plus des 30 titulaires (40 au total pour 30 services). Ils permettent à l'agent de remplacer un bus devenu insuffisant par grand froid |
 | Consommation par temps doux | 1,1 à 1,4 kWh/km |
 | Consommation par grand froid | 1,6 à 2,0 kWh/km |
 | Chargeurs dépôt | 10 chargeurs de 100 à 150 kW |
@@ -382,6 +383,7 @@ Chacun prend une lettre (A, B ou C) et coche ses cases dans ce fichier en commit
 **A : Data 1, infra et ingestion**
 
 - [x] GTFS de Dijon récupéré, 30 services extraits dans `data/services.csv` (`scripts/extract_services.py`)
+- [ ] Générer la flotte à 40 bus (30 titulaires + 10 de réserve) avec des SoH variés (de 0,80 à 1,00) pour que le grand froid rende certaines paires bus/service infaisables, puis la charger dans `buses`
 - [ ] Créer le service Aiven PostgreSQL, partager `PG_URI` hors GitHub, ajouter `.env.example`
 - [ ] Initialiser le projet : `uv init`, `pyproject.toml`, `uv.lock` (dépendances de la section 6)
 - [ ] Créer les tables de la section 8 (`scripts/create_tables.py` ou SQL)
@@ -402,10 +404,10 @@ Chacun prend une lettre (A, B ou C) et coche ses cases dans ce fichier en commit
 
 **C : Data 2 puis Produit**
 
-- [ ] Flotte simulée : 30 bus (`buses`) et 10 chargeurs (`chargers`) selon les paramètres de la section 7, dans `data/buses.csv` et `data/chargers.csv`
-- [ ] Modèle « vrai » caché + bruit, consommation observée sur 3 nuits (`consumption_obs`)
-- [ ] `app/model.py` : `predict_consumption`, `available_kwh`, `record_outcome` (régression, MAPE)
-- [ ] Rejeu de 3 nuits, écriture dans `model_runs`, `app/metrics.py` (`compare_plans`, `mape_history`)
+- [x] Flotte simulée : 30 bus (`buses`) et 10 chargeurs (`chargers`) selon les paramètres de la section 7, dans `data/buses.csv` et `data/chargers.csv`
+- [x] Modèle « vrai » caché + bruit, consommation observée sur 3 nuits (`consumption_obs`)
+- [x] `app/model.py` : `predict_consumption`, `available_kwh`, `record_outcome` (régression, MAPE)
+- [x] Rejeu de 3 nuits, écriture dans `model_runs`, `app/metrics.py` (`compare_plans`, `mape_history`)
 - [ ] Projet Lovable (dépôt séparé), publié sur données factices
 - [ ] Écran dépôt, bouton « vague de froid », comparaison naïf vs agent, courbe de MAPE, branchés sur l'API
 - [ ] Slides de pitch et vidéo de secours
