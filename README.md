@@ -124,6 +124,10 @@ Dépendances de base : `fastapi`, `uvicorn`, `psycopg[binary]` (Postgres), `anth
 | CORS | Autoriser le domaine Lovable (`*.lovable.app`) dans FastAPI |
 | Écrans à générer | Plan de la nuit (bus, services, créneaux de recharge), bouton « Vague de froid -5°C », explication de l'agent, comparaison naïf vs agent et courbe de MAPE |
 
+### Terrain de démo : Dijon
+
+Le réseau est celui de Divia Mobilités (agglomération de Dijon : 2 lignes de tram, 7 Lianes, lignes de bus, navettes). Les horaires viennent du GTFS ouvert, la météo d'Open-Meteo pour Dijon (climat continental, vraies nuits froides en hiver). Le tram est exclu du périmètre (pas de batterie). Le plan du réseau sert de support visuel pour le pitch. La flotte de 30 bus et le dépôt restent fictifs : aucune donnée interne de l'opérateur n'est utilisée, et le projet n'est pas affilié à Divia.
+
 ### Ressources et crédits
 
 Crédits fournis à chaque participant par l'organisation, et ce qu'on en fait.
@@ -143,7 +147,7 @@ Crédits fournis à chaque participant par l'organisation, et ce qu'on en fait.
 
 | Donnée | Source | Statut |
 |---|---|---|
-| Services (lignes, horaires, distance) | GTFS d'un réseau de taille moyenne (transport.data.gouv.fr), 30 services extraits et figés en CSV | Réel |
+| Services (lignes, horaires, distance) | GTFS du réseau Divia Mobilités (Dijon, transport.data.gouv.fr), 30 services extraits et figés en CSV | Réel |
 | Météo horaire | Open-Meteo (API historique, gratuite, sans clé), une vraie nuit froide de l'hiver dernier | Réel |
 | Prix de l'électricité | 3 tranches : heures creuses, pleines, pointe | Simplifié |
 | Flotte (30 bus) | Générée en Python | Simulé |
@@ -378,7 +382,7 @@ Rien de tout ça n'est du code produit, mais chaque point retire un risque du bu
 | Tâche | Pourquoi |
 |---|---|
 | Créer le service Aiven PostgreSQL et partager `PG_URI` (hors GitHub) | Le provisionnement prend plusieurs minutes |
-| Extraire les 30 services GTFS en CSV | Choisir le réseau et les lignes prend du temps |
+| Télécharger le GTFS de Dijon (Divia) et en extraire 30 services en CSV | Choisir les lignes prend du temps. Privilégier des lignes à fort kilométrage (Lianes, tram exclu : il n'est pas à batterie) et prendre la longueur de service dans `stop_times` + `shapes` |
 | Récupérer la nuit froide sur Open-Meteo et la figer en CSV | Repli prêt si l'API bloque |
 | Vérifier qu'Aiven Runtime accepte une app FastAPI + uv (un « hello world ») | C'est le principal risque inconnu de la stack |
 | Installer uv sur les 3 machines, accès au dépôt GitHub pour les 3 | Ne pas perdre les 20 premières minutes |
