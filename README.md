@@ -402,10 +402,10 @@ Chacun prend une lettre (A, B ou C) et coche ses cases dans ce fichier en commit
 
 **C : Data 2 puis Produit**
 
-- [ ] Flotte simulée : 30 bus (`buses`) et 10 chargeurs (`chargers`) selon les paramètres de la section 7, dans `data/buses.csv` et `data/chargers.csv`
-- [ ] Modèle « vrai » caché + bruit, consommation observée sur 3 nuits (`consumption_obs`)
-- [ ] `app/model.py` : `predict_consumption`, `available_kwh`, `record_outcome` (régression, MAPE)
-- [ ] Rejeu de 3 nuits, écriture dans `model_runs`, `app/metrics.py` (`compare_plans`, `mape_history`)
+- [x] Flotte simulée : 30 bus (`buses`) et 10 chargeurs (`chargers`) selon les paramètres de la section 7, dans `data/buses.csv` et `data/chargers.csv`
+- [x] Modèle « vrai » caché + bruit, consommation observée sur 3 nuits (`consumption_obs`)
+- [x] `app/model.py` : `predict_consumption`, `available_kwh`, `record_outcome` (régression, MAPE)
+- [x] Rejeu de 3 nuits, écriture dans `model_runs`, `app/metrics.py` (`compare_plans`, `mape_history`)
 - [ ] Projet Lovable (dépôt séparé), publié sur données factices
 - [ ] Écran dépôt, bouton « vague de froid », comparaison naïf vs agent, courbe de MAPE, branchés sur l'API
 - [ ] Slides de pitch et vidéo de secours
