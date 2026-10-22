@@ -383,7 +383,7 @@ Chacun prend une lettre (A, B ou C) et coche ses cases dans ce fichier en commit
 **A : Data 1, infra et ingestion**
 
 - [x] GTFS de Dijon récupéré, 30 services extraits dans `data/services.csv` (`scripts/extract_services.py`)
-- [ ] Générer la flotte à 40 bus (30 titulaires + 10 de réserve) avec des SoH variés (de 0,80 à 1,00) pour que le grand froid rende certaines paires bus/service infaisables, puis la charger dans `buses`
+- [x] (fait par C, `scripts/simulate_data.py`) Générer la flotte à 40 bus (30 titulaires + 10 de réserve) avec des SoH variés (de 0,80 à 1,00) pour que le grand froid rende certaines paires bus/service infaisables, puis la charger dans `buses`
 - [ ] Créer le service Aiven PostgreSQL, partager `PG_URI` hors GitHub, ajouter `.env.example`
 - [ ] Initialiser le projet : `uv init`, `pyproject.toml`, `uv.lock` (dépendances de la section 6)
 - [ ] Créer les tables de la section 8 (`scripts/create_tables.py` ou SQL)

@@ -2,7 +2,7 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Génère la flotte, les chargeurs et la consommation observée (données simulées, section 7 du README).
+"""Génère la flotte (40 bus : 30 titulaires + 10 de réserve), les chargeurs et la consommation observée (données simulées, section 7 du README).
 
 Usage : uv run scripts/simulate_data.py
 
@@ -31,13 +31,19 @@ NOISE = 0.04  # bruit relatif sur la consommation observée
 services = list(csv.DictReader(open(DATA / "services.csv", encoding="utf-8")))
 lines = sorted({s["line"] for s in services})
 
-# --- Flotte : 30 bus 12 m ---
+# --- Flotte : 40 bus 12 m ---
+# B01 à B30 : titulaires (un par service) ; B31 à B40 : réserve (le planificateur le déduit de l'identifiant).
+# Quelques titulaires fragiles (SoH bas, petite batterie) deviennent insuffisants par grand froid sur les
+# services longs ; les réserves, en bon état, peuvent les remplacer.
+WEAK_TITULAIRES = {3, 8, 12, 17, 21, 26}  # numéros de bus fragiles
 buses = []
-for i in range(1, 31):
+for i in range(1, 41):
+    reserve = i > 30
+    weak = i in WEAK_TITULAIRES
     buses.append({
         "bus_id": f"B{i:02d}",
-        "battery_kwh": rng.choice([350, 380, 400, 420, 450]),
-        "soh": round(rng.uniform(0.80, 1.00), 2),
+        "battery_kwh": rng.choice([350, 380]) if weak else rng.choice([420, 450]) if reserve else rng.choice([350, 380, 400, 420, 450]),
+        "soh": round(rng.uniform(0.80, 0.85) if weak else rng.uniform(0.95, 1.00) if reserve else rng.uniform(0.80, 1.00), 2),
         "soc_evening": round(rng.uniform(0.20, 0.55), 2),  # charge au retour au dépôt
         "base_kwh_per_km": round(rng.uniform(1.10, 1.40), 2),  # à 15°C
     })
@@ -69,11 +75,11 @@ write_csv(DATA / "chargers.csv", chargers)
 (DATA / "sim_truth.json").write_text(json.dumps(truth_params, indent=2) + "\n", encoding="utf-8")
 truth.load_truth.cache_clear()
 
-# --- Consommation observée : chaque nuit, les 30 bus sont affectés aux 30 services ---
+# --- Consommation observée : chaque nuit, 30 des 40 bus sont affectés aux 30 services ---
 obs = []
 for night, temp in HISTORY_NIGHTS.items():
     order = list(range(len(buses)))
-    rng.shuffle(order)
+    rng.shuffle(order)  # seuls les 30 premiers roulent cette nuit
     for svc, bi in zip(services, order):
         bus = buses[bi]
         km = float(svc["distance_km"])
