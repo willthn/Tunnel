@@ -6,10 +6,12 @@ Lancer : uv run fastapi dev app/main.py
 import logging
 import os
 import re
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from app import metrics
@@ -93,3 +95,10 @@ def reset(body: Reset | None = None) -> dict:
 @app.get("/metrics/mape")
 def mape() -> list:
     return metrics.mape_history()
+
+
+# Front Tunnel (build Vite, dossier static/) servi par le même service : même origine, aucun CORS à régler.
+# Monté en dernier : les routes de l'API ci-dessus restent prioritaires.
+_FRONT = Path(__file__).resolve().parent.parent / "static"
+if _FRONT.is_dir():
+    app.mount("/", StaticFiles(directory=_FRONT, html=True), name="front")

@@ -8,7 +8,7 @@ from decimal import Decimal
 
 from psycopg.types.json import Jsonb
 
-from app import weather
+from app import prices, weather
 from app.db import connect
 
 ORDER = {
@@ -62,6 +62,37 @@ def forecast(night: date) -> list[dict]:
     if not rows:
         raise LookupError(f"aucune météo disponible pour la nuit du {night}")
     return rows
+
+
+def store_prices(rows: list[dict]) -> None:
+    with connect().cursor() as cur:
+        cur.executemany(
+            """INSERT INTO energy_price (ts, eur_kwh, tranche, source)
+               VALUES (%(ts)s, %(eur_kwh)s, %(tranche)s, %(source)s)
+               ON CONFLICT (ts) DO UPDATE
+               SET eur_kwh = EXCLUDED.eur_kwh, tranche = EXCLUDED.tranche, source = EXCLUDED.source""",
+            rows,
+        )
+
+
+def ingest_prices(start: date, end: date) -> dict:
+    """Prix spot publics (Energy-Charts) écrits dans energy_price. Renvoie un rapport."""
+    try:
+        rows = prices.fetch_day_ahead(start, end)
+    except Exception as e:  # source en panne : on garde ce qui est en base
+        return {"provider": "energy-charts", "rows": 0, "error": f"{type(e).__name__}: {e}"}
+    if rows:
+        store_prices(rows)
+    return {"provider": "energy-charts", "rows": len(rows), "error": None}
+
+
+def night_prices(night: date) -> list[dict]:
+    """Prix de la nuit. S'il manque des heures en base, on va les chercher chez Energy-Charts."""
+    rows = window("energy_price", night)
+    if len(rows) < 15:
+        ingest_prices(night - timedelta(days=1), night)
+        rows = window("energy_price", night)
+    return [{k: r[k] for k in ("ts", "eur_kwh", "tranche")} for r in rows]
 
 
 def save_plan(plan: dict, explanation: str) -> None:

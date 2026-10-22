@@ -150,7 +150,7 @@ Crédits fournis à chaque participant par l'organisation, et ce qu'on en fait.
 |---|---|---|
 | Services (lignes, horaires, distance) | GTFS du réseau Divia Mobilités (Dijon, transport.data.gouv.fr), 30 services extraits et figés en CSV | Réel |
 | Météo horaire | 4 fournisseurs sans clé, récupérés en direct et stockés dans `weather_obs` avec leur provenance : Open-Meteo (prévisions Météo-France AROME, ECMWF, NOAA GFS), Copernicus ERA5 (réanalyse, via Open-Meteo), Météo-France (mesures horaires de Dijon-Longvic, données ouvertes), NOAA NCEI (mesures ISD de Dijon-Longvic, disponibles jusqu'au 24 août 2025 seulement : référence de l'hiver 2024-2025). Nuit douce 2026-01-14, vraie nuit froide 2026-01-05 | Réel |
-| Prix de l'électricité | 3 tranches : heures creuses, pleines, pointe | Simplifié |
+| Prix de l'électricité | Prix spot day-ahead France, horaire, depuis [Energy-Charts](https://api.energy-charts.info) (Fraunhofer ISE, données Bundesnetzagentur / SMARD, CC BY 4.0, sans clé), via `app/prices.py`. Prix de gros, hors acheminement et taxes. Tranche déduite du classement du jour : 8 h les moins chères « creuse », 3 h les plus chères « pointe ». Repli sur un tarif 3 tranches si la source est injoignable | Réel |
 | Flotte (40 bus : 30 titulaires + 10 de réserve) | Générée en Python, avec des états de santé de batterie (SoH) variés d'un bus à l'autre | Simulé |
 | Consommation observée | Générée à partir d'un modèle « vrai » caché + bruit, pour que l'agent ait quelque chose à apprendre | Simulé |
 
@@ -231,8 +231,9 @@ CREATE TABLE weather_obs (          -- toutes les sources, avec provenance et fr
 
 CREATE TABLE energy_price (
   ts       TIMESTAMP PRIMARY KEY,
-  eur_kwh  REAL,
-  tranche  TEXT                 -- 'creuse', 'pleine', 'pointe'
+  eur_kwh  REAL,                -- prix spot day-ahead France, €/kWh de gros
+  tranche  TEXT,                -- 'creuse', 'pleine', 'pointe' (classement des heures du jour)
+  source   TEXT                 -- 'energy-charts-fr-day-ahead' ou 'tarif-3-tranches' (repli)
 );
 
 CREATE TABLE consumption_obs (
@@ -433,18 +434,6 @@ Chacun prend une lettre (A, B ou C) et coche ses cases dans ce fichier en commit
 - [ ] 0:00 à 0:20 : valider schéma (section 8), JSON et signatures (section 9)
 - [ ] Gel du code à 4:30, déploiement final
 
-### À faire avant le jour J (si le règlement l'autorise)
-
-Rien de tout ça n'est du code produit, mais chaque point retire un risque du build.
-
-| Tâche | Pourquoi |
-|---|---|
-| Créer le service Aiven PostgreSQL et partager `PG_URI` (hors GitHub) | Le provisionnement prend plusieurs minutes |
-| Télécharger le GTFS de Dijon (Divia) et lancer `uv run scripts/extract_services.py <dossier_gtfs>` : produit `data/services.csv` (30 vacations de 110 à 175 km, fait) | Choisir les lignes prend du temps. Privilégier des lignes à fort kilométrage (Lianes, tram exclu : il n'est pas à batterie) et prendre la longueur de service dans `stop_times` + `shapes` |
-| Récupérer la nuit froide sur Open-Meteo et la figer en CSV | Repli prêt si l'API bloque |
-| Vérifier qu'Aiven Runtime accepte une app FastAPI + uv (un « hello world ») | C'est le principal risque inconnu de la stack |
-| Installer uv sur les 3 machines, accès au dépôt GitHub pour les 3 | Ne pas perdre les 20 premières minutes |
-
 ### Travail avec Git
 
 Les trois personnes sont ajoutées comme collaborateurs du dépôt (Settings > Collaborators), donc avec accès en écriture : chacun le **clone**, personne ne le forke (un fork obligerait à passer par des pull requests entre dépôts).
@@ -453,11 +442,13 @@ Les trois personnes sont ajoutées comme collaborateurs du dépôt (Settings > C
 |---|---|
 | Une fois | `git clone https://github.com/willthn/WattShift.git` |
 | Avant de commencer et avant chaque push | `git pull --rebase` |
-| Après chaque étape qui marche | `git add …`, `git commit`, `git push` |
+| Pour chaque tâche | une branche `a/…`, `b/…` ou `c/…` partie de `main`, `uv run pytest` vert, une PR |
+| Avant de reprendre après un merge | `git fetch` puis `git rebase origin/main` |
 
 | Règle | Détail |
 |---|---|
-| Tout le monde sur `main`, petits commits fréquents | Pas le temps de relire des PR en 4h30 |
+| Personne ne pousse directement sur `main` : tout passe par une PR courte, mergée avec un commit de merge | `main` reste toujours déployable (Aiven Runtime construit depuis `main`) |
+| Les branches ne sont pas supprimées pendant le hackathon | Nettoyage après la démo |
 | Un fichier, un responsable (voir section 9) | Pratiquement aucun conflit |
 | `uv.lock` : en cas de conflit, résoudre `pyproject.toml` puis régénérer avec `uv lock` | Le fichier est généré, il ne se fusionne pas à la main |
 | Le front Lovable vit dans son propre dépôt | Lovable gère seul sa synchro GitHub |
@@ -482,7 +473,7 @@ Les trois personnes sont ajoutées comme collaborateurs du dépôt (Settings > C
 | 1 dépôt, flotte simulée | Branchement sur la télémétrie réelle d'un opérateur |
 | Vague de froid | Pannes de chargeurs, maintenance, ordre de sortie des bus garés en file |
 | Heuristique | Solveur d'optimisation (OR-Tools) |
-| Prix en 3 tranches | Prix spot de l'électricité en temps réel |
+| Prix spot day-ahead (Energy-Charts) | Tarif réel du dépôt : prix spot + acheminement (TURPE) + taxes |
 | Mémoire de consommation | Historique des incidents et des décisions recherchable (OpenSearch) |
 
 ## 15. Route vers les premiers utilisateurs

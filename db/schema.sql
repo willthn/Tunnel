@@ -53,10 +53,11 @@ CREATE TABLE IF NOT EXISTS weather_obs (      -- toutes les sources, avec leur p
 );
 
 CREATE TABLE IF NOT EXISTS energy_price (
-  ts       TIMESTAMP PRIMARY KEY,
-  eur_kwh  REAL,
-  tranche  TEXT                 -- 'creuse', 'pleine', 'pointe'
+  ts       TIMESTAMP PRIMARY KEY,    -- heure locale Europe/Paris
+  eur_kwh  REAL,                     -- prix spot day-ahead France, €/kWh de gros
+  tranche  TEXT                      -- 'creuse' (8 h les moins chères du jour), 'pleine', 'pointe' (3 h les plus chères)
 );
+ALTER TABLE energy_price ADD COLUMN IF NOT EXISTS source TEXT;  -- 'energy-charts-fr-day-ahead' ou 'tarif-3-tranches' (repli)
 
 CREATE TABLE IF NOT EXISTS consumption_obs (
   night_date  DATE,
