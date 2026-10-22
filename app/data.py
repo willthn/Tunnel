@@ -10,6 +10,7 @@ import random
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
+from app import aiven
 from app.contract import (
     DATA_MODE,
     Bus,
@@ -34,36 +35,52 @@ _fake_runs: list[ModelRun] = []
 # --- API publique (signatures README section 9) ---------------------------------
 
 def get_buses() -> list[Bus]:
-    return _fake_buses() if DATA_MODE == "fake" else _aiven_select("buses")
+    return _fake_buses() if DATA_MODE == "fake" else aiven.select("buses")
 
 
 def get_services() -> list[Service]:
-    return _fake_services() if DATA_MODE == "fake" else _aiven_select("services")
+    return _fake_services() if DATA_MODE == "fake" else aiven.select("services")
 
 
 def get_chargers() -> list[Charger]:
-    return _fake_chargers() if DATA_MODE == "fake" else _aiven_select("chargers")
+    return _fake_chargers() if DATA_MODE == "fake" else aiven.select("chargers")
 
 
 def get_depot() -> Depot:
-    return _fake_depot() if DATA_MODE == "fake" else _aiven_select("depot")[0]
+    return _fake_depot() if DATA_MODE == "fake" else aiven.depot()
 
 
 def get_forecast(night: date) -> list[WeatherPoint]:
     """Températures horaires de 18h la veille à 8h le jour de `night`."""
-    return _fake_forecast(night) if DATA_MODE == "fake" else _aiven_range("weather_hourly", night)
+    return _fake_forecast(night) if DATA_MODE == "fake" else aiven.forecast(night)
+
+
+def refresh_forecast(night: date) -> dict:
+    """Va chercher la météo fraîche chez les fournisseurs et renvoie ce qu'on en retient.
+
+    {"min_temp_c": float, "sources": [{"provider", "rows", "error"}], "fetched_at": str}.
+    Mode fake : aucun appel réseau, lit data/weather.csv."""
+    if DATA_MODE == "fake":
+        report = [{"provider": "data/weather.csv", "rows": len(_fake_forecast(night)), "error": None}]
+    else:
+        report = aiven.ingest_weather(night - timedelta(days=1), night)
+    return {
+        "min_temp_c": min(p["temp_c"] for p in get_forecast(night)),
+        "sources": report,
+        "fetched_at": datetime.now().isoformat(timespec="seconds"),
+    }
 
 
 def get_prices(night: date) -> list[PricePoint]:
     """Prix horaires de 18h la veille à 8h le jour de `night`."""
-    return _fake_prices(night) if DATA_MODE == "fake" else _aiven_range("energy_price", night)
+    return _fake_prices(night) if DATA_MODE == "fake" else aiven.window("energy_price", night)
 
 
 def save_plan(plan: dict, explanation: str) -> None:
     if DATA_MODE == "fake":
         _fake_plans.append({**plan, "explanation": explanation})
         return
-    raise NotImplementedError("A : écrire dans la table plans")
+    aiven.save_plan(plan, explanation)
 
 
 def get_plan(night_date: str, strategy: str) -> Plan | None:
@@ -73,31 +90,31 @@ def get_plan(night_date: str, strategy: str) -> Plan | None:
             if plan["night_date"] == night_date and plan["strategy"] == strategy:
                 return plan  # type: ignore[return-value]
         return None
-    raise NotImplementedError("A : SELECT payload, explanation FROM plans ... ORDER BY created_at DESC LIMIT 1")
+    return aiven.get_plan(night_date, strategy)  # type: ignore[return-value]
 
 
 # --- Ajouts proposés pour C (à valider) : sans eux, C devrait écrire dans data.py ---
 
 def get_consumption_obs() -> list[ConsumptionObs]:
-    return list(_fake_obs) if DATA_MODE == "fake" else _aiven_select("consumption_obs")
+    return list(_fake_obs) if DATA_MODE == "fake" else aiven.select("consumption_obs")
 
 
 def save_consumption_obs(rows: list[ConsumptionObs]) -> None:
     if DATA_MODE == "fake":
         _fake_obs.extend(rows)
         return
-    raise NotImplementedError("A : insérer dans consumption_obs")
+    aiven.save_consumption_obs(rows)  # type: ignore[arg-type]
 
 
 def get_model_runs() -> list[ModelRun]:
-    return list(_fake_runs) if DATA_MODE == "fake" else _aiven_select("model_runs")
+    return list(_fake_runs) if DATA_MODE == "fake" else aiven.select("model_runs")
 
 
 def save_model_run(run: ModelRun) -> None:
     if DATA_MODE == "fake":
         _fake_runs.append(run)
         return
-    raise NotImplementedError("A : insérer dans model_runs")
+    aiven.save_model_run(run)  # type: ignore[arg-type]
 
 
 # --- Mode fake -------------------------------------------------------------------
@@ -189,26 +206,17 @@ def _fake_forecast(night: date) -> list[WeatherPoint]:
     return [{"ts": ts.isoformat(), "temp_c": float(t)} for ts, t in zip(_night_hours(night), temps)]
 
 
+def hourly_price(ts: datetime) -> PricePoint:
+    """Tarif en 3 tranches : creuses 22h-6h, pointe 18h-20h, pleines le reste du temps."""
+    h = ts.hour
+    if h >= 22 or h < 6:
+        tranche, price = "creuse", 0.13
+    elif 18 <= h < 20:
+        tranche, price = "pointe", 0.28
+    else:
+        tranche, price = "pleine", 0.20
+    return {"ts": ts.isoformat(), "eur_kwh": price, "tranche": tranche}  # type: ignore[typeddict-item]
+
+
 def _fake_prices(night: date) -> list[PricePoint]:
-    def tranche(h: int) -> tuple[str, float]:
-        if h >= 22 or h < 6:
-            return "creuse", 0.13
-        if 18 <= h < 20:
-            return "pointe", 0.28
-        return "pleine", 0.20
-
-    out: list[PricePoint] = []
-    for ts in _night_hours(night):
-        name, price = tranche(ts.hour)
-        out.append({"ts": ts.isoformat(), "eur_kwh": price, "tranche": name})  # type: ignore[typeddict-item]
-    return out
-
-
-# --- Mode aiven (A : à implémenter) -------------------------------------------------
-
-def _aiven_select(table: str) -> list:
-    raise NotImplementedError(f"A : SELECT * FROM {table} via PG_URI")
-
-
-def _aiven_range(table: str, night: date) -> list:
-    raise NotImplementedError(f"A : SELECT {table} entre 18h la veille et 8h le {night}")
+    return [hourly_price(ts) for ts in _night_hours(night)]
