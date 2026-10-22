@@ -70,6 +70,8 @@ def test_health_reports_data_mode_and_llm(client):
     "https://wattshift.lovable.app",
     "https://abc-123.lovableproject.com",
     "https://preview.lovable.dev",
+    "https://tunnel-wattshift.vercel.app",
+    "https://tunnel-git-main-achille.vercel.app",
     "http://localhost:5173",
 ])
 def test_cors_allows_lovable_and_localhost(client, origin):
@@ -77,6 +79,11 @@ def test_cors_allows_lovable_and_localhost(client, origin):
     assert r.headers.get("access-control-allow-origin") == origin
 
 
-def test_cors_rejects_other_origins(client):
-    r = client.get("/health", headers={"Origin": "https://evil.example.com"})
+@pytest.mark.parametrize("origin", [
+    "https://evil.example.com",
+    "https://vercel.app.evil.com",
+    "http://tunnel.vercel.app",  # http, pas https
+])
+def test_cors_rejects_other_origins(client, origin):
+    r = client.get("/health", headers={"Origin": origin})
     assert "access-control-allow-origin" not in r.headers

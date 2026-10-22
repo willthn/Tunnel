@@ -17,8 +17,8 @@ from app.planner import run_planner
 app = FastAPI(title="WattShift")
 app.add_middleware(
     CORSMiddleware,
-    # Lovable publie sur *.lovable.app, prévisualise sur *.lovableproject.com / *.lovable.dev.
-    allow_origin_regex=r"https://.*\.(lovable\.app|lovableproject\.com|lovable\.dev)|http://localhost:\d+",
+    # Front publié sur Vercel (*.vercel.app) ; Lovable : *.lovable.app, prévisualisations *.lovableproject.com / *.lovable.dev.
+    allow_origin_regex=r"https://[a-z0-9.-]+\.(vercel\.app|lovable\.app|lovableproject\.com|lovable\.dev)|http://localhost:\d+",
     # Domaine du front publié (ex. https://wattshift.lovable.app ou un domaine perso), séparés par des virgules.
     allow_origins=[o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()],
     allow_methods=["*"],
