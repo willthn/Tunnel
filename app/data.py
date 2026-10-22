@@ -18,6 +18,7 @@ from app.contract import (
     ConsumptionObs,
     ModelRun,
     PricePoint,
+    Plan,
     Service,
     WeatherPoint,
 )
@@ -63,6 +64,16 @@ def save_plan(plan: dict, explanation: str) -> None:
         _fake_plans.append({**plan, "explanation": explanation})
         return
     raise NotImplementedError("A : écrire dans la table plans")
+
+
+def get_plan(night_date: str, strategy: str) -> Plan | None:
+    """Dernier plan sauvegardé pour cette nuit et cette stratégie, avec son explanation."""
+    if DATA_MODE == "fake":
+        for plan in reversed(_fake_plans):
+            if plan["night_date"] == night_date and plan["strategy"] == strategy:
+                return plan  # type: ignore[return-value]
+        return None
+    raise NotImplementedError("A : SELECT payload, explanation FROM plans ... ORDER BY created_at DESC LIMIT 1")
 
 
 # --- Ajouts proposés pour C (à valider) : sans eux, C devrait écrire dans data.py ---
@@ -164,7 +175,16 @@ def _night_hours(night: date) -> list[datetime]:
 
 
 def _fake_forecast(night: date) -> list[WeatherPoint]:
-    # Nuit froide plausible : 2°C à 18h, minimum vers 6h à -6°C.
+    """Météo réelle de Dijon (data/weather.csv) si elle couvre la nuit, sinon nuit froide factice."""
+    hours = {ts.isoformat() for ts in _night_hours(night)}
+    real = [
+        {"ts": r["ts"], "temp_c": float(r["temp_c"])}
+        for r in _read_csv("weather.csv") or []
+        if r["ts"] in hours
+    ]
+    if len(real) == len(hours):
+        return real
+    # Repli : 2°C à 18h, minimum vers 6h à -6°C.
     temps = [2, 1, 0, -1, -2, -2.5, -3, -3.5, -4, -4.5, -5, -5.5, -6, -5.5, -4]
     return [{"ts": ts.isoformat(), "temp_c": float(t)} for ts, t in zip(_night_hours(night), temps)]
 

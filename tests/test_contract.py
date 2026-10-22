@@ -43,6 +43,21 @@ def test_data():
         assert_shape(r, contract.PricePoint)
 
 
+def test_forecast_nights():
+    mild = min(p["temp_c"] for p in data.get_forecast(NIGHT))
+    cold = min(p["temp_c"] for p in data.get_forecast(date.fromisoformat(contract.COLD_NIGHT)))
+    assert mild > 0 > cold, f"nuit douce {mild}°C, nuit froide {cold}°C"
+    assert len(data.get_forecast(NIGHT)) == 15
+
+
+def test_get_plan():
+    assert data.get_plan("1999-01-01", "agent") is None
+    run_agent({"night_date": contract.DEFAULT_NIGHT, "strategy": "agent"})
+    saved = data.get_plan(contract.DEFAULT_NIGHT, "agent")
+    assert saved and saved["explanation"] and saved["strategy"] == "agent"
+    assert data.get_plan(contract.DEFAULT_NIGHT, "naive") is None
+
+
 def test_model():
     bus = data.get_buses()[0]["bus_id"]
     service = data.get_services()[0]["service_id"]

@@ -287,7 +287,7 @@ En plus du JSON, les signatures ci-dessous sont figées à 0:20. Chaque module e
 
 | Fichier | Responsable | Fonctions |
 |---|---|---|
-| `app/data.py` | Data 1 | `get_buses() -> list[dict]`, `get_services() -> list[dict]`, `get_chargers() -> list[dict]`, `get_depot() -> dict` (`{"max_power_kw": 806}` au minimum : `data/depot.json` en mode fake, table `depot` en mode aiven), `get_forecast(night: date) -> list[dict]` (`ts`, `temp_c`), `get_prices(night: date) -> list[dict]`, `save_plan(plan: dict, explanation: str) -> None` |
+| `app/data.py` | Data 1 | `get_buses() -> list[dict]`, `get_services() -> list[dict]`, `get_chargers() -> list[dict]`, `get_depot() -> dict` (`{"max_power_kw": 806}` au minimum : `data/depot.json` en mode fake, table `depot` en mode aiven), `get_forecast(night: date) -> list[dict]` (`ts`, `temp_c`), `get_prices(night: date) -> list[dict]`, `save_plan(plan: dict, explanation: str) -> None`, `get_plan(night_date: str, strategy: str) -> dict \| None` (dernier plan sauvegardé, avec son `explanation`) |
 | `app/model.py` | Data 2 | `predict_consumption(bus_id: str, service_id: str, temp_c: float) -> float` (kWh), `available_kwh(bus_id: str, temp_c: float) -> float`, `record_outcome(night: date) -> dict` (nouvelle MAPE et coefficients) |
 | `app/metrics.py` | Data 2 | `compare_plans(naive: dict, agent: dict) -> dict` (KPIs section 11), `mape_history() -> list[dict]` |
 | `app/planner.py`, `app/agent.py` | Agent | `run_planner(constraints: dict) -> dict` (plan section 9), `check_plan(plan: dict) -> dict`, boucle agent |
@@ -393,7 +393,7 @@ Chacun prend une lettre (A, B ou C) et coche ses cases dans ce fichier en commit
 - [ ] Initialiser le projet : `uv init`, `pyproject.toml`, `uv.lock` (dépendances de la section 6)
 - [ ] Créer les tables de la section 8 (`scripts/create_tables.py` ou SQL)
 - [ ] `app/data.py` en mode `fake` (signatures section 9), puis mode `aiven`
-- [ ] Météo Open-Meteo pour Dijon, une vraie nuit froide, figée en `data/weather.csv`
+- [x] Météo Open-Meteo pour Dijon, hiver 2025-2026 figé en `data/weather.csv` (`scripts/fetch_weather.py`) : nuit douce 2026-01-14 (5,4°C), vraie nuit froide 2026-01-05 (-6,7°C)
 - [ ] Prix de l'électricité en 3 tranches dans `energy_price`
 - [ ] `scripts/load_data.py` : charge services, météo, prix, flotte et chargeurs dans Aiven
 - [ ] Déployer le backend sur Aiven Runtime (tester d'abord un « hello world » FastAPI + uv)
