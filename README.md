@@ -150,7 +150,7 @@ Crédits fournis à chaque participant par l'organisation, et ce qu'on en fait.
 |---|---|---|
 | Services (lignes, horaires, distance) | GTFS du réseau Divia Mobilités (Dijon, transport.data.gouv.fr), 30 services extraits et figés en CSV | Réel |
 | Météo horaire | 4 fournisseurs sans clé, récupérés en direct et stockés dans `weather_obs` avec leur provenance : Open-Meteo (prévisions Météo-France AROME, ECMWF, NOAA GFS), Copernicus ERA5 (réanalyse, via Open-Meteo), Météo-France (mesures horaires de Dijon-Longvic, données ouvertes), NOAA NCEI (mesures ISD de Dijon-Longvic, disponibles jusqu'au 24 août 2025 seulement : référence de l'hiver 2024-2025). Nuit douce 2026-01-14, vraie nuit froide 2026-01-05 | Réel |
-| Prix de l'électricité | 3 tranches : heures creuses, pleines, pointe | Simplifié |
+| Prix de l'électricité | Prix spot day-ahead France, horaire, depuis [Energy-Charts](https://api.energy-charts.info) (Fraunhofer ISE, données Bundesnetzagentur / SMARD, CC BY 4.0, sans clé), via `app/prices.py`. Prix de gros, hors acheminement et taxes. Tranche déduite du classement du jour : 8 h les moins chères « creuse », 3 h les plus chères « pointe ». Repli sur un tarif 3 tranches si la source est injoignable | Réel |
 | Flotte (40 bus : 30 titulaires + 10 de réserve) | Générée en Python, avec des états de santé de batterie (SoH) variés d'un bus à l'autre | Simulé |
 | Consommation observée | Générée à partir d'un modèle « vrai » caché + bruit, pour que l'agent ait quelque chose à apprendre | Simulé |
 
@@ -231,8 +231,9 @@ CREATE TABLE weather_obs (          -- toutes les sources, avec provenance et fr
 
 CREATE TABLE energy_price (
   ts       TIMESTAMP PRIMARY KEY,
-  eur_kwh  REAL,
-  tranche  TEXT                 -- 'creuse', 'pleine', 'pointe'
+  eur_kwh  REAL,                -- prix spot day-ahead France, €/kWh de gros
+  tranche  TEXT,                -- 'creuse', 'pleine', 'pointe' (classement des heures du jour)
+  source   TEXT                 -- 'energy-charts-fr-day-ahead' ou 'tarif-3-tranches' (repli)
 );
 
 CREATE TABLE consumption_obs (
@@ -482,7 +483,7 @@ Les trois personnes sont ajoutées comme collaborateurs du dépôt (Settings > C
 | 1 dépôt, flotte simulée | Branchement sur la télémétrie réelle d'un opérateur |
 | Vague de froid | Pannes de chargeurs, maintenance, ordre de sortie des bus garés en file |
 | Heuristique | Solveur d'optimisation (OR-Tools) |
-| Prix en 3 tranches | Prix spot de l'électricité en temps réel |
+| Prix spot day-ahead (Energy-Charts) | Tarif réel du dépôt : prix spot + acheminement (TURPE) + taxes |
 | Mémoire de consommation | Historique des incidents et des décisions recherchable (OpenSearch) |
 
 ## 15. Route vers les premiers utilisateurs

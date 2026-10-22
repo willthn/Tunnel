@@ -73,7 +73,7 @@ def refresh_forecast(night: date) -> dict:
 
 def get_prices(night: date) -> list[PricePoint]:
     """Prix horaires de 18h la veille à 8h le jour de `night`."""
-    return _fake_prices(night) if DATA_MODE == "fake" else aiven.window("energy_price", night)
+    return _fake_prices(night) if DATA_MODE == "fake" else aiven.night_prices(night)
 
 
 def save_plan(plan: dict, explanation: str) -> None:
@@ -207,7 +207,7 @@ def _fake_forecast(night: date) -> list[WeatherPoint]:
 
 
 def hourly_price(ts: datetime) -> PricePoint:
-    """Tarif en 3 tranches : creuses 22h-6h, pointe 18h-20h, pleines le reste du temps."""
+    """Repli si Energy-Charts est injoignable : tarif en 3 tranches (creuses 22h-6h, pointe 18h-20h)."""
     h = ts.hour
     if h >= 22 or h < 6:
         tranche, price = "creuse", 0.13
@@ -219,4 +219,13 @@ def hourly_price(ts: datetime) -> PricePoint:
 
 
 def _fake_prices(night: date) -> list[PricePoint]:
+    """Prix spot réels (data/energy_price.csv, Energy-Charts) si la nuit est couverte, sinon tarif 3 tranches."""
+    hours = {ts.isoformat() for ts in _night_hours(night)}
+    real = [
+        {"ts": r["ts"], "eur_kwh": float(r["eur_kwh"]), "tranche": r["tranche"]}
+        for r in _read_csv("energy_price.csv") or []
+        if r["ts"] in hours
+    ]
+    if len(real) == len(hours):
+        return real  # type: ignore[return-value]
     return [hourly_price(ts) for ts in _night_hours(night)]
