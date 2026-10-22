@@ -71,18 +71,18 @@ Open-Meteo / CSV prix / GTFS / flotte simulée
               |- check_plan()
               |- agent (Claude, appel d'outils)
                 |
-                v
-              Front (écran dépôt, bouton incident, métriques)
+                v  API REST (JSON section 9)
+              Front Lovable (écran dépôt, bouton incident, métriques)
 ```
 
 | Composant | Choix |
 |---|---|
-| Hébergement | Aiven Runtime |
+| Hébergement | Backend sur Aiven Runtime, front publié par Lovable |
 | Bases | Aiven ClickHouse et Aiven PostgreSQL : toute la data passe par Aiven, aucune base locale |
 | Backend | Python, FastAPI |
 | Environnement Python | uv (dépendances, venv, lancement des scripts) : pas de pip ni de venv à la main |
 | Agent | Claude via API, avec appel d'outils |
-| Front | React (Vite) ou HTML simple, selon le temps |
+| Front | Lovable (génère du React + Vite + Tailwind), branché sur l'API FastAPI |
 | Bonus si temps | Aiven for OpenSearch (historique des incidents), Aiven for Valkey (état live), OR-Tools (solveur) |
 
 ### Environnement Python avec uv
@@ -113,6 +113,31 @@ Dépendances de base : `fastapi`, `uvicorn`, `psycopg[binary]` (Postgres), `clic
 | Connexion par variables d'environnement | `PG_URI` et `CLICKHOUSE_URL`, `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD`, copiés depuis la console Aiven dans un `.env` non commité (`.env.example` commité) |
 | TLS obligatoire | Connexions en `sslmode=require` (Postgres) et HTTPS (ClickHouse), comme l'impose Aiven |
 | Chargement | `uv run python scripts/load_data.py` crée les tables (section 8) et charge CSV, météo et flotte simulée dans Aiven |
+
+### Front avec Lovable
+
+| Règle | Détail |
+|---|---|
+| Dépôt dédié | Lovable synchronise un dépôt GitHub entier : connecter le projet Lovable à un dépôt séparé (ex. `WattShift-front`), pas à celui-ci |
+| Pas de Supabase côté Lovable | Lovable propose Supabase par défaut : refuser. Le front ne parle qu'à l'API FastAPI, la data reste dans Aiven |
+| Contrat | Donner à Lovable le format JSON de la section 9 et l'URL de l'API (variable `VITE_API_URL`). Prévoir des données factices au même format pour avancer avant que l'API soit en ligne |
+| CORS | Autoriser le domaine Lovable (`*.lovable.app`) dans FastAPI |
+| Écrans à générer | Plan de la nuit (bus, services, créneaux de recharge), bouton « Vague de froid -5°C », explication de l'agent, comparaison naïf vs agent et courbe de MAPE |
+
+### Ressources et crédits
+
+Crédits fournis à chaque participant par l'organisation, et ce qu'on en fait.
+
+| Ressource | Usage prévu |
+|---|---|
+| Aiven | Bases PostgreSQL et ClickHouse, hébergement du backend (Aiven Runtime) |
+| Lovable | Tout le front (voir ci-dessus) |
+| Anthropic ($100) | Claude pour la boucle agent et les explications |
+| Lightdash Cloud Pro (1 mois, par équipe) | Optionnel : tableau de bord des métriques naïf vs agent branché sur Aiven PostgreSQL, en secours si l'écran Lovable des métriques n'est pas prêt |
+| Miro Enterprise (1 mois) | Préparation du pitch et schéma d'architecture |
+| Modal ($100) | Non prévu. Solution de repli si Aiven Runtime bloque plus de 15 min pour le backend |
+| Keenable | Non prévu pour l'instant |
+| Vercel AI Gateway ($120), ElevenLabs (110k), Supabase ($25), Stripe ($500), n8n Cloud Pro, OpenAI ($50) | Non utilisés : hors périmètre de la démo |
 
 ## 7. Données
 
@@ -312,12 +337,12 @@ Toutes les valeurs sont calculées en live sur les données. Aucun chiffre en du
 |---|---|
 | A : Data | Aiven, chargement CSV, météo, flotte simulée, modèle de consommation, métriques |
 | B : Agent | Heuristique, plan naïf, boucle agent, explications |
-| C : Produit | App déployée sur Aiven Runtime, écran dépôt, scénario de démo, pitch |
+| C : Produit | Front Lovable, déploiement sur Aiven Runtime, écran dépôt, scénario de démo, pitch |
 
 | Heure | A : Data | B : Agent | C : Produit |
 |---|---|---|---|
 | 0:00 à 0:20 | Ensemble : valider schéma des tables (section 8) et format JSON (section 9) | | |
-| 0:20 à 1:30 | Aiven en place, tables remplies | Heuristique et plan naïf sur données factices | App déployée, écran de base |
+| 0:20 à 1:30 | Aiven en place, tables remplies | Heuristique et plan naïf sur données factices | Projet Lovable publié sur données factices, backend vide déployé |
 | **1:30** | **Checkpoint : données en base, un plan sort, une page en ligne** | | |
 | 1:30 à 3:00 | Modèle de consommation, rejeu de 3 nuits | Boucle agent complète | Écran dépôt et bouton « vague de froid » |
 | **3:00** | **Checkpoint : intégration de bout en bout** | | |
