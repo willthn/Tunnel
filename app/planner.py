@@ -253,3 +253,63 @@ def check_plan(plan: Plan, margin_pct: float = DEFAULT_MARGIN_PCT) -> PlanCheck:
         "max_power_kw": max_kw,
         "issues": issues,
     }
+
+
+def reassess_plan(plan: Plan, temp_c: float) -> dict:
+    """Réévalue un plan existant à une autre température, avec le modèle de l'agent.
+
+    C'est l'étape « détecter » : combien de services de l'ancien plan ne tiennent plus ?
+    """
+    buses = {b["bus_id"]: b for b in data.get_buses()}
+    charged: dict[str, float] = {}
+    for c in plan["charging"]:
+        charged[c["bus_id"]] = charged.get(c["bus_id"], 0.0) + c["kwh"]
+    infeasible = []
+    for a in plan["assignments"]:
+        b = buses[a["bus_id"]]
+        soc = min(1.0, b["soc_evening"] + charged.get(a["bus_id"], 0.0) / (b["battery_kwh"] * b["soh"]))
+        need = model.predict_consumption(a["bus_id"], a["service_id"], temp_c)
+        avail = model.available_kwh(a["bus_id"], temp_c, soc)
+        if avail + EPS < need:
+            infeasible.append({
+                "service_id": a["service_id"],
+                "bus_id": a["bus_id"],
+                "missing_kwh": round(need - avail, 1),
+            })
+    return {"temp_c": temp_c, "infeasible": infeasible}
+
+
+def diff_plans(old: Plan, new: Plan) -> dict:
+    """Ce qui change entre deux plans, calculé en code : le LLM ne fait que le mettre en mots."""
+    old_bus = {a["service_id"]: a["bus_id"] for a in old["assignments"]}
+    new_bus = {a["service_id"]: a["bus_id"] for a in new["assignments"]}
+    reassigned = [
+        {"service_id": s, "from_bus": old_bus[s], "to_bus": b, "to_reserve": is_reserve(b)}
+        for s, b in sorted(new_bus.items())
+        if s in old_bus and old_bus[s] != b
+    ]
+    reserve_activated = sorted(
+        b for b in set(new_bus.values()) - set(old_bus.values()) if is_reserve(b)
+    )
+
+    def first_start(plan):
+        starts: dict[str, datetime] = {}
+        for c in plan["charging"]:
+            t = datetime.fromisoformat(c["start"])
+            starts[c["bus_id"]] = min(t, starts.get(c["bus_id"], t))
+        return starts
+
+    before, after = first_start(old), first_start(new)
+    advanced = [
+        {"bus_id": b, "hours_earlier": round((before[b] - t).total_seconds() / 3600, 1)}
+        for b, t in sorted(after.items())
+        if b in before and before[b] - t >= timedelta(minutes=30)
+    ]
+    return {
+        "reassigned": reassigned,
+        "reserve_activated": reserve_activated,
+        "charging_advanced": advanced,
+        "cost_delta_eur": round(new["kpis"]["charging_cost_eur"] - old["kpis"]["charging_cost_eur"], 1),
+        "uncovered_before": list(old["uncovered_services"]),
+        "uncovered_after": list(new["uncovered_services"]),
+    }

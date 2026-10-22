@@ -109,6 +109,12 @@ class Kpis(TypedDict):
     replan_seconds: float
 
 
+class TraceStep(TypedDict):
+    tool: str        # outil appelé par l'agent (ou étape du repli)
+    summary: str     # une phrase lisible : ce qui a été fait ou constaté
+    seconds: float
+
+
 class Plan(TypedDict):
     plan_id: str
     night_date: str
@@ -119,6 +125,8 @@ class Plan(TypedDict):
     uncovered_services: list[str]
     kpis: Kpis
     explanation: str
+    agent_trace: NotRequired[list[TraceStep]]  # étapes de l'agent, pour l'affichage en démo
+    fallback: NotRequired[bool]                # vrai si le repli sans LLM a été utilisé
 
 
 class PlanCheck(TypedDict):
