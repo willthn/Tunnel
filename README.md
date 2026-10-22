@@ -434,18 +434,6 @@ Chacun prend une lettre (A, B ou C) et coche ses cases dans ce fichier en commit
 - [ ] 0:00 à 0:20 : valider schéma (section 8), JSON et signatures (section 9)
 - [ ] Gel du code à 4:30, déploiement final
 
-### À faire avant le jour J (si le règlement l'autorise)
-
-Rien de tout ça n'est du code produit, mais chaque point retire un risque du build.
-
-| Tâche | Pourquoi |
-|---|---|
-| Créer le service Aiven PostgreSQL et partager `PG_URI` (hors GitHub) | Le provisionnement prend plusieurs minutes |
-| Télécharger le GTFS de Dijon (Divia) et lancer `uv run scripts/extract_services.py <dossier_gtfs>` : produit `data/services.csv` (30 vacations de 110 à 175 km, fait) | Choisir les lignes prend du temps. Privilégier des lignes à fort kilométrage (Lianes, tram exclu : il n'est pas à batterie) et prendre la longueur de service dans `stop_times` + `shapes` |
-| Récupérer la nuit froide sur Open-Meteo et la figer en CSV | Repli prêt si l'API bloque |
-| Vérifier qu'Aiven Runtime accepte une app FastAPI + uv (un « hello world ») | C'est le principal risque inconnu de la stack |
-| Installer uv sur les 3 machines, accès au dépôt GitHub pour les 3 | Ne pas perdre les 20 premières minutes |
-
 ### Travail avec Git
 
 Les trois personnes sont ajoutées comme collaborateurs du dépôt (Settings > Collaborators), donc avec accès en écriture : chacun le **clone**, personne ne le forke (un fork obligerait à passer par des pull requests entre dépôts).
@@ -454,11 +442,13 @@ Les trois personnes sont ajoutées comme collaborateurs du dépôt (Settings > C
 |---|---|
 | Une fois | `git clone https://github.com/willthn/WattShift.git` |
 | Avant de commencer et avant chaque push | `git pull --rebase` |
-| Après chaque étape qui marche | `git add …`, `git commit`, `git push` |
+| Pour chaque tâche | une branche `a/…`, `b/…` ou `c/…` partie de `main`, `uv run pytest` vert, une PR |
+| Avant de reprendre après un merge | `git fetch` puis `git rebase origin/main` |
 
 | Règle | Détail |
 |---|---|
-| Tout le monde sur `main`, petits commits fréquents | Pas le temps de relire des PR en 4h30 |
+| Personne ne pousse directement sur `main` : tout passe par une PR courte, mergée avec un commit de merge | `main` reste toujours déployable (Aiven Runtime construit depuis `main`) |
+| Les branches ne sont pas supprimées pendant le hackathon | Nettoyage après la démo |
 | Un fichier, un responsable (voir section 9) | Pratiquement aucun conflit |
 | `uv.lock` : en cas de conflit, résoudre `pyproject.toml` puis régénérer avec `uv lock` | Le fichier est généré, il ne se fusionne pas à la main |
 | Le front Lovable vit dans son propre dépôt | Lovable gère seul sa synchro GitHub |
