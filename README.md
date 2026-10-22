@@ -112,7 +112,8 @@ Dépendances de base : `fastapi`, `uvicorn`, `psycopg[binary]` (Postgres), `anth
 | Une seule source de vérité | Le backend et l'agent lisent et écrivent uniquement dans Aiven. Les CSV ne servent qu'à l'import initial |
 | Connexion par variable d'environnement | `PG_URI`, copiée depuis la console Aiven dans un `.env` non commité (`.env.example` commité) |
 | TLS obligatoire | Connexion en `sslmode=require`, comme l'impose Aiven |
-| Chargement | `uv run python scripts/load_data.py` crée les tables (section 8) et charge CSV, météo et flotte simulée dans Aiven |
+| Chargement | `uv run python scripts/load_data.py` crée les tables (`db/schema.sql`), importe une fois le référentiel depuis `data/*.csv`, puis récupère la météo en direct chez les 4 fournisseurs. Relançable à volonté |
+| Fraîcheur | `DATA_MODE=aiven` : `get_forecast` lit `weather_hourly`, et `refresh_forecast` repart interroger les fournisseurs. Chaque ligne de `weather_obs` porte sa date de récupération |
 
 ### Front avec Lovable
 
@@ -148,7 +149,7 @@ Crédits fournis à chaque participant par l'organisation, et ce qu'on en fait.
 | Donnée | Source | Statut |
 |---|---|---|
 | Services (lignes, horaires, distance) | GTFS du réseau Divia Mobilités (Dijon, transport.data.gouv.fr), 30 services extraits et figés en CSV | Réel |
-| Météo horaire | Open-Meteo (API historique, gratuite, sans clé), une vraie nuit froide de l'hiver dernier | Réel |
+| Météo horaire | 4 fournisseurs sans clé, récupérés en direct et stockés dans `weather_obs` avec leur provenance : Open-Meteo (prévisions Météo-France AROME, ECMWF, NOAA GFS), Copernicus ERA5 (réanalyse, via Open-Meteo), Météo-France (mesures horaires de Dijon-Longvic, données ouvertes), NOAA NCEI (mesures ISD de Dijon-Longvic, disponibles jusqu'au 24 août 2025 seulement : référence de l'hiver 2024-2025). Nuit douce 2026-01-14, vraie nuit froide 2026-01-05 | Réel |
 | Prix de l'électricité | 3 tranches : heures creuses, pleines, pointe | Simplifié |
 | Flotte (40 bus : 30 titulaires + 10 de réserve) | Générée en Python, avec des états de santé de batterie (SoH) variés d'un bus à l'autre | Simulé |
 | Consommation observée | Générée à partir d'un modèle « vrai » caché + bruit, pour que l'agent ait quelque chose à apprendre | Simulé |
@@ -211,12 +212,21 @@ CREATE TABLE plans (
 
 ### PostgreSQL (séries temporelles et mémoire)
 
-Mêmes tables qu'on aurait mises dans ClickHouse, dans la même base. Si on ajoute ClickHouse en bonus, on y recopie ces quatre tables sans changer leurs colonnes.
+Mêmes tables qu'on aurait mises dans ClickHouse, dans la même base. Si on ajoute ClickHouse en bonus, on y recopie ces tables sans changer leurs colonnes. Le script SQL complet est `db/schema.sql`.
 
 ```sql
-CREATE TABLE weather_hourly (
+CREATE TABLE weather_hourly (       -- température retenue pour planifier : médiane des prévisions
   ts      TIMESTAMP PRIMARY KEY,
   temp_c  REAL
+);
+
+CREATE TABLE weather_obs (          -- toutes les sources, avec provenance et fraîcheur
+  ts          TIMESTAMP,            -- heure locale Europe/Paris
+  source      TEXT,                 -- meteofrance-arome, ecmwf-ifs, gfs, copernicus-era5, noaa-isd-07280, meteofrance-21473001
+  kind        TEXT,                 -- 'forecast', 'reanalysis' ou 'observed'
+  temp_c      REAL,
+  fetched_at  TIMESTAMP DEFAULT now(),
+  PRIMARY KEY (ts, source, kind)
 );
 
 CREATE TABLE energy_price (
@@ -287,7 +297,7 @@ En plus du JSON, les signatures ci-dessous sont figées à 0:20. Chaque module e
 
 | Fichier | Responsable | Fonctions |
 |---|---|---|
-| `app/data.py` | Data 1 | `get_buses() -> list[dict]`, `get_services() -> list[dict]`, `get_chargers() -> list[dict]`, `get_depot() -> dict` (`{"max_power_kw": 806}` au minimum : `data/depot.json` en mode fake, table `depot` en mode aiven), `get_forecast(night: date) -> list[dict]` (`ts`, `temp_c`), `get_prices(night: date) -> list[dict]`, `save_plan(plan: dict, explanation: str) -> None`, `get_plan(night_date: str, strategy: str) -> dict \| None` (dernier plan sauvegardé, avec son `explanation`) |
+| `app/data.py` | Data 1 | `get_buses() -> list[dict]`, `get_services() -> list[dict]`, `get_chargers() -> list[dict]`, `get_depot() -> dict` (`{"max_power_kw": 806}` au minimum : `data/depot.json` en mode fake, table `depot` en mode aiven), `get_forecast(night: date) -> list[dict]` (`ts`, `temp_c`), `get_prices(night: date) -> list[dict]`, `refresh_forecast(night: date) -> dict` (va chercher la météo fraîche chez les fournisseurs, écrit dans Aiven, renvoie `{min_temp_c, sources, fetched_at}`), `save_plan(plan: dict, explanation: str) -> None`, `get_plan(night_date: str, strategy: str) -> dict \| None` (dernier plan sauvegardé, avec son `explanation`), `get_consumption_obs() -> list[dict]`, `save_consumption_obs(rows: list[dict]) -> None`, `get_model_runs() -> list[dict]`, `save_model_run(run: dict) -> None` (mémoire du modèle : Data 2 lit et écrit via ces fonctions, jamais dans des fichiers) |
 | `app/model.py` | Data 2 | `predict_consumption(bus_id: str, service_id: str, temp_c: float) -> float` (kWh), `available_kwh(bus_id: str, temp_c: float) -> float`, `record_outcome(night: date) -> dict` (nouvelle MAPE et coefficients) |
 | `app/metrics.py` | Data 2 | `compare_plans(naive: dict, agent: dict) -> dict` (KPIs section 11), `mape_history() -> list[dict]` |
 | `app/planner.py`, `app/agent.py` | Agent | `run_planner(constraints: dict) -> dict` (plan section 9), `check_plan(plan: dict) -> dict`, boucle agent |
@@ -391,11 +401,12 @@ Chacun prend une lettre (A, B ou C) et coche ses cases dans ce fichier en commit
 - [ ] Générer la flotte à 40 bus (30 titulaires + 10 de réserve) avec des SoH variés (de 0,80 à 1,00) pour que le grand froid rende certaines paires bus/service infaisables, puis la charger dans `buses`
 - [ ] Créer le service Aiven PostgreSQL, partager `PG_URI` hors GitHub, ajouter `.env.example`
 - [ ] Initialiser le projet : `uv init`, `pyproject.toml`, `uv.lock` (dépendances de la section 6)
-- [ ] Créer les tables de la section 8 (`scripts/create_tables.py` ou SQL)
-- [ ] `app/data.py` en mode `fake` (signatures section 9), puis mode `aiven`
+- [x] Créer les tables de la section 8 (`db/schema.sql`, appliqué par `scripts/load_data.py`)
+- [x] `app/data.py` en mode `fake` (signatures section 9)
+- [ ] `app/data.py` en mode `aiven` (écrit dans `app/aiven.py`, à valider sur le vrai service Aiven)
 - [x] Météo Open-Meteo pour Dijon, hiver 2025-2026 figé en `data/weather.csv` (`scripts/fetch_weather.py`) : nuit douce 2026-01-14 (5,4°C), vraie nuit froide 2026-01-05 (-6,7°C)
 - [ ] Prix de l'électricité en 3 tranches dans `energy_price`
-- [ ] `scripts/load_data.py` : charge services, météo, prix, flotte et chargeurs dans Aiven
+- [ ] `scripts/load_data.py` : charge services, météo, prix, flotte et chargeurs dans Aiven (écrit, à lancer sur le vrai service Aiven)
 - [ ] Déployer le backend sur Aiven Runtime (tester d'abord un « hello world » FastAPI + uv)
 
 **B : Agent**
