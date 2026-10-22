@@ -1,12 +1,12 @@
 """Accès aux données (A : Data 1).
 
-DATA_MODE=fake : services lus dans data/services.csv (vrai GTFS Dijon), le reste
-généré en dur. DATA_MODE=aiven : tout est lu et écrit dans Aiven PostgreSQL.
+DATA_MODE=fake : lecture des fichiers de data/ (services GTFS, flotte simulée, météo et prix
+réels figés), plans et mémoire du modèle en mémoire. DATA_MODE=aiven : tout est lu et écrit
+dans Aiven PostgreSQL.
 Les signatures ne changent pas d'un mode à l'autre.
 """
 import csv
 import json
-import random
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -73,7 +73,7 @@ def refresh_forecast(night: date) -> dict:
 
 def get_prices(night: date) -> list[PricePoint]:
     """Prix horaires de 18h la veille à 8h le jour de `night`."""
-    return _fake_prices(night) if DATA_MODE == "fake" else aiven.window("energy_price", night)
+    return _fake_prices(night) if DATA_MODE == "fake" else aiven.night_prices(night)
 
 
 def save_plan(plan: dict, explanation: str) -> None:
@@ -142,41 +142,22 @@ def _fake_services() -> list[Service]:
 
 
 def _fake_buses() -> list[Bus]:
-    rows = _read_csv("buses.csv")  # produit par C, prioritaire s'il existe
-    if rows:
-        return [
-            {
-                "bus_id": r["bus_id"],
-                "battery_kwh": float(r["battery_kwh"]),
-                "soh": float(r["soh"]),
-                "soc_evening": float(r["soc_evening"]),
-                "base_kwh_per_km": float(r["base_kwh_per_km"]),
-            }
-            for r in rows
-        ]
-    rng = random.Random(42)
     return [
         {
-            "bus_id": f"B{i:02d}",
-            "battery_kwh": float(rng.choice([350, 400, 450])),
-            "soh": round(rng.uniform(0.80, 1.00), 2),
-            "soc_evening": round(rng.uniform(0.15, 0.45), 2),
-            "base_kwh_per_km": round(rng.uniform(1.1, 1.4), 2),
+            "bus_id": r["bus_id"],
+            "battery_kwh": float(r["battery_kwh"]),
+            "soh": float(r["soh"]),
+            "soc_evening": float(r["soc_evening"]),
+            "base_kwh_per_km": float(r["base_kwh_per_km"]),
         }
-        for i in range(1, 31)
+        for r in _read_csv("buses.csv") or []  # flotte simulée par C (scripts/simulate_data.py)
     ]
 
 
 def _fake_chargers() -> list[Charger]:
-    rows = _read_csv("chargers.csv")  # produit par C, prioritaire s'il existe
-    if rows:
-        return [
-            {"charger_id": r["charger_id"], "power_kw": float(r["power_kw"]), "status": r["status"]}
-            for r in rows
-        ]
     return [
-        {"charger_id": f"C{i:02d}", "power_kw": 150.0 if i <= 4 else 100.0, "status": "ok"}
-        for i in range(1, 11)
+        {"charger_id": r["charger_id"], "power_kw": float(r["power_kw"]), "status": r["status"]}
+        for r in _read_csv("chargers.csv") or []  # produits par C (scripts/simulate_data.py)
     ]
 
 
@@ -207,7 +188,7 @@ def _fake_forecast(night: date) -> list[WeatherPoint]:
 
 
 def hourly_price(ts: datetime) -> PricePoint:
-    """Tarif en 3 tranches : creuses 22h-6h, pointe 18h-20h, pleines le reste du temps."""
+    """Repli si Energy-Charts est injoignable : tarif en 3 tranches (creuses 22h-6h, pointe 18h-20h)."""
     h = ts.hour
     if h >= 22 or h < 6:
         tranche, price = "creuse", 0.13
@@ -219,4 +200,13 @@ def hourly_price(ts: datetime) -> PricePoint:
 
 
 def _fake_prices(night: date) -> list[PricePoint]:
+    """Prix spot réels (data/energy_price.csv, Energy-Charts) si la nuit est couverte, sinon tarif 3 tranches."""
+    hours = {ts.isoformat() for ts in _night_hours(night)}
+    real = [
+        {"ts": r["ts"], "eur_kwh": float(r["eur_kwh"]), "tranche": r["tranche"]}
+        for r in _read_csv("energy_price.csv") or []
+        if r["ts"] in hours
+    ]
+    if len(real) == len(hours):
+        return real  # type: ignore[return-value]
     return [hourly_price(ts) for ts in _night_hours(night)]

@@ -4,8 +4,8 @@ Usage : uv run python scripts/load_data.py [--start 2026-01-01] [--end 2026-01-1
 
 Idempotent : relançable à volonté (CREATE IF NOT EXISTS + upserts).
 Les CSV de data/ ne servent qu'à l'import initial du référentiel (services, flotte, chargeurs,
-dépôt, consommation observée, runs du modèle). La météo, elle, est récupérée en direct chez les
-4 fournisseurs (app/weather.py) : elle n'est jamais lue dans un CSV.
+dépôt, consommation observée, runs du modèle). La météo (4 fournisseurs, app/weather.py) et le prix
+spot de l'électricité (Energy-Charts, app/prices.py) sont récupérés en direct : jamais lus dans un CSV.
 """
 import argparse
 import csv
@@ -87,15 +87,20 @@ def main() -> None:
     runs = [{**r, "coef_json": Jsonb(json.loads(r["coef_json"]))} for r in read_csv("model_runs.csv")]
     upsert("model_runs", ["run_id", "night_date", "mape", "coef_json"], ["run_id"], runs)
 
-    print(f"4. Prix de l'électricité (3 tranches) du {start} au {end}")
-    hours = [datetime.combine(start - timedelta(days=1), datetime.min.time()) + timedelta(hours=h)
-             for h in range(((end - start).days + 2) * 24)]
-    prices = [{**p, "ts": datetime.fromisoformat(p["ts"])} for p in map(data.hourly_price, hours)]
-    upsert("energy_price", ["ts", "eur_kwh", "tranche"], ["ts"], prices)
+    ref_start, ref_end = date.fromisoformat(args.reference_start), date.fromisoformat(args.reference_end)
+    for label, a, b in (("fenêtre de démo", start - timedelta(days=1), end), ("hiver précédent", ref_start, ref_end)):
+        print(f"4. Prix spot day-ahead France (Energy-Charts), {label} : {a} -> {b}")
+        report = aiven.ingest_prices(a, b)
+        if report["error"]:
+            print(f"   ERREUR {report['error']} : repli sur le tarif 3 tranches")
+            hours = [datetime.combine(a, datetime.min.time()) + timedelta(hours=h) for h in range(((b - a).days + 1) * 24)]
+            fallback = [{**p, "ts": datetime.fromisoformat(p["ts"]), "source": "tarif-3-tranches"} for p in map(data.hourly_price, hours)]
+            upsert("energy_price", ["ts", "eur_kwh", "tranche", "source"], ["ts"], fallback)
+        else:
+            print(f"   {report['rows']} heures")
 
     if not args.skip_weather:
-        for label, a, b in (("fenêtre de démo", start, end),
-                            ("hiver précédent (référence NOAA)", date.fromisoformat(args.reference_start), date.fromisoformat(args.reference_end))):
+        for label, a, b in (("fenêtre de démo", start, end), ("hiver précédent (référence NOAA)", ref_start, ref_end)):
             print(f"5. Météo en direct, {label} : {a} -> {b}")
             for r in aiven.ingest_weather(a, b):
                 status = f"ERREUR {r['error']}" if r["error"] else f"{r['rows']} lignes"
