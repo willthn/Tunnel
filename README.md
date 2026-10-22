@@ -62,9 +62,9 @@ Agent de planification nocturne pour dépôts de bus électriques.
 Open-Meteo / CSV prix / GTFS / flotte simulée
                 |
                 v
-   ClickHouse (séries temporelles)   PostgreSQL (référentiel et plans)
-                \                         /
-                 v                       v
+              Aiven PostgreSQL (référentiel, séries temporelles, plans)
+                |
+                v
               Backend FastAPI (Aiven Runtime)
               |- predict_consumption()
               |- run_planner()
@@ -78,12 +78,12 @@ Open-Meteo / CSV prix / GTFS / flotte simulée
 | Composant | Choix |
 |---|---|
 | Hébergement | Backend sur Aiven Runtime, front publié par Lovable |
-| Bases | Aiven ClickHouse et Aiven PostgreSQL : toute la data passe par Aiven, aucune base locale |
+| Base | Aiven PostgreSQL seul : toute la data passe par Aiven, aucune base locale. À cette échelle (30 bus, 30 services, 3 nuits), ClickHouse n'apporte rien et coûte une deuxième connexion et un deuxième schéma |
 | Backend | Python, FastAPI |
 | Environnement Python | uv (dépendances, venv, lancement des scripts) : pas de pip ni de venv à la main |
 | Agent | Claude via API, avec appel d'outils |
 | Front | Lovable (génère du React + Vite + Tailwind), branché sur l'API FastAPI |
-| Bonus si temps | Aiven for OpenSearch (historique des incidents), Aiven for Valkey (état live), OR-Tools (solveur) |
+| Bonus si temps | Aiven for ClickHouse (séries temporelles, si on veut le montrer), Aiven for OpenSearch (historique des incidents), Aiven for Valkey (état live), OR-Tools (solveur) |
 
 ### Environnement Python avec uv
 
@@ -98,20 +98,20 @@ Tout le Python du projet (backend, scripts de chargement, modèle, agent) est g�
 | Lancer un script | `uv run python scripts/load_data.py` |
 | Lancer les tests | `uv run pytest` |
 
-Dépendances de base : `fastapi`, `uvicorn`, `psycopg[binary]` (Postgres), `clickhouse-connect` (ClickHouse), `anthropic`, `httpx` (Open-Meteo), `pandas`.
+Dépendances de base : `fastapi`, `uvicorn`, `psycopg[binary]` (Postgres), `anthropic`, `httpx` (Open-Meteo), `pandas`.
 
 ### Data sur Aiven
 
 | Service Aiven | Contenu |
 |---|---|
-| Aiven for PostgreSQL | Référentiel (bus, services, chargeurs) et plans générés |
-| Aiven for ClickHouse | Séries temporelles : météo, prix, consommation observée, runs du modèle |
+| Aiven for PostgreSQL | Tout : référentiel (bus, services, chargeurs), séries temporelles (météo, prix, consommation observée, runs du modèle) et plans générés |
+| Aiven for ClickHouse (bonus) | Copie des séries temporelles, seulement si tout le reste marche |
 
 | Règle | Détail |
 |---|---|
 | Une seule source de vérité | Le backend et l'agent lisent et écrivent uniquement dans Aiven. Les CSV ne servent qu'à l'import initial |
-| Connexion par variables d'environnement | `PG_URI` et `CLICKHOUSE_URL`, `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD`, copiés depuis la console Aiven dans un `.env` non commité (`.env.example` commité) |
-| TLS obligatoire | Connexions en `sslmode=require` (Postgres) et HTTPS (ClickHouse), comme l'impose Aiven |
+| Connexion par variable d'environnement | `PG_URI`, copiée depuis la console Aiven dans un `.env` non commité (`.env.example` commité) |
+| TLS obligatoire | Connexion en `sslmode=require`, comme l'impose Aiven |
 | Chargement | `uv run python scripts/load_data.py` crée les tables (section 8) et charge CSV, météo et flotte simulée dans Aiven |
 
 ### Front avec Lovable
@@ -130,7 +130,7 @@ Crédits fournis à chaque participant par l'organisation, et ce qu'on en fait.
 
 | Ressource | Usage prévu |
 |---|---|
-| Aiven | Bases PostgreSQL et ClickHouse, hébergement du backend (Aiven Runtime) |
+| Aiven | Base PostgreSQL (ClickHouse en bonus), hébergement du backend (Aiven Runtime) |
 | Lovable | Tout le front (voir ci-dessus) |
 | Anthropic ($100) | Claude pour la boucle agent et les explications |
 | Lightdash Cloud Pro (1 mois, par équipe) | Optionnel : tableau de bord des métriques naïf vs agent branché sur Aiven PostgreSQL, en secours si l'écran Lovable des métriques n'est pas prêt |
@@ -149,7 +149,7 @@ Crédits fournis à chaque participant par l'organisation, et ce qu'on en fait.
 | Flotte (30 bus) | Générée en Python | Simulé |
 | Consommation observée | Générée à partir d'un modèle « vrai » caché + bruit, pour que l'agent ait quelque chose à apprendre | Simulé |
 
-Toutes ces données sont chargées dans Aiven (PostgreSQL ou ClickHouse, voir section 8) avant la démo. Rien n'est lu directement depuis un fichier pendant l'exécution.
+Toutes ces données sont chargées dans Aiven PostgreSQL (voir section 8) avant la démo. Rien n'est lu directement depuis un fichier pendant l'exécution.
 
 **Paramètres réalistes de la flotte (ordres de grandeur)**
 
@@ -199,39 +199,42 @@ CREATE TABLE plans (
 );
 ```
 
-### ClickHouse (séries temporelles et mémoire)
+### PostgreSQL (séries temporelles et mémoire)
+
+Mêmes tables qu'on aurait mises dans ClickHouse, dans la même base. Si on ajoute ClickHouse en bonus, on y recopie ces quatre tables sans changer leurs colonnes.
 
 ```sql
 CREATE TABLE weather_hourly (
-  ts      DateTime,
-  temp_c  Float32
-) ENGINE = MergeTree ORDER BY ts;
+  ts      TIMESTAMP PRIMARY KEY,
+  temp_c  REAL
+);
 
 CREATE TABLE energy_price (
-  ts       DateTime,
-  eur_kwh  Float32,
-  tranche  String               -- 'creuse', 'pleine', 'pointe'
-) ENGINE = MergeTree ORDER BY ts;
+  ts       TIMESTAMP PRIMARY KEY,
+  eur_kwh  REAL,
+  tranche  TEXT                 -- 'creuse', 'pleine', 'pointe'
+);
 
 CREATE TABLE consumption_obs (
-  night_date  Date,
-  bus_id      String,
-  service_id  String,
-  line        String,
-  temp_c      Float32,
-  km          Float32,
-  kwh         Float32
-) ENGINE = MergeTree ORDER BY (night_date, bus_id);
+  night_date  DATE,
+  bus_id      TEXT,
+  service_id  TEXT,
+  line        TEXT,
+  temp_c      REAL,
+  km          REAL,
+  kwh         REAL,
+  PRIMARY KEY (night_date, bus_id, service_id)
+);
 
 CREATE TABLE model_runs (
-  run_id      String,
-  night_date  Date,
-  mape        Float32,          -- erreur de prévision moyenne
-  coef_json   String            -- coefficients appris
-) ENGINE = MergeTree ORDER BY night_date;
+  run_id      TEXT PRIMARY KEY,
+  night_date  DATE,
+  mape        REAL,             -- erreur de prévision moyenne
+  coef_json   JSONB             -- coefficients appris
+);
 ```
 
-## 9. Format JSON du plan (contrat entre les 3 personnes)
+## 9. Contrat entre les 3 personnes : format JSON du plan et signatures Python
 
 ```json
 {
@@ -268,6 +271,20 @@ CREATE TABLE model_runs (
 }
 ```
 
+### Contrat en fonctions Python
+
+En plus du JSON, les signatures ci-dessous sont figées à 0:20. Chaque module est d'abord livré en version factice (valeurs plausibles en dur, mêmes types), pour que l'Agent code contre lui dès le début. On bascule sur la vraie version sans changer les appels, avec `DATA_MODE=fake` ou `DATA_MODE=aiven` dans le `.env`.
+
+| Fichier | Responsable | Fonctions |
+|---|---|---|
+| `app/data.py` | Data 1 | `get_buses() -> list[dict]`, `get_services() -> list[dict]`, `get_chargers() -> list[dict]`, `get_forecast(night: date) -> list[dict]` (`ts`, `temp_c`), `get_prices(night: date) -> list[dict]`, `save_plan(plan: dict, explanation: str) -> None` |
+| `app/model.py` | Data 2 | `predict_consumption(bus_id: str, service_id: str, temp_c: float) -> float` (kWh), `available_kwh(bus_id: str, temp_c: float) -> float`, `record_outcome(night: date) -> dict` (nouvelle MAPE et coefficients) |
+| `app/metrics.py` | Data 2 | `compare_plans(naive: dict, agent: dict) -> dict` (KPIs section 11), `mape_history() -> list[dict]` |
+| `app/planner.py`, `app/agent.py` | Agent | `run_planner(constraints: dict) -> dict` (plan section 9), `check_plan(plan: dict) -> dict`, boucle agent |
+| `app/main.py` | Agent | Routes FastAPI appelées par le front |
+
+Un fichier n'a qu'un responsable : on évite ainsi les conflits Git.
+
 ## 10. Logique métier
 
 ### Modèle de consommation
@@ -297,7 +314,7 @@ Même planificateur, mais consommation fixe à 15°C, sans météo ni apprentiss
 
 | Outil | Rôle |
 |---|---|
-| `get_forecast(night)` | Lit la météo de la nuit dans ClickHouse |
+| `get_forecast(night)` | Lit la météo de la nuit dans Postgres |
 | `predict_consumption(bus, service, temp)` | Applique le modèle courant |
 | `run_planner(constraints)` | Lance l'heuristique, renvoie un plan JSON |
 | `check_plan(plan)` | Vérifie marges, services non couverts, puissance dépôt |
@@ -321,7 +338,7 @@ Toutes les valeurs sont calculées en live sur les données. Aucun chiffre en du
 
 | Réel (tourne en démo) | Simulé (données générées) | Maquette (visible, non fonctionnel) |
 |---|---|---|
-| Bases Aiven ClickHouse et Postgres | Télémétrie et état des bus | Onglet maintenance |
+| Base Aiven PostgreSQL | Télémétrie et état des bus | Onglet maintenance |
 | Météo réelle | Consommation observée | Multi-dépôts |
 | Modèle qui apprend | Tarifs en 3 tranches | Chargeur en panne (bonus si temps) |
 | Heuristique et boucle agent | | Connexion à un outil d'exploitation opérateur |
@@ -333,28 +350,62 @@ Toutes les valeurs sont calculées en live sur les données. Aucun chiffre en du
 
 ## 13. Équipe et planning (4h30 de build + 1h30 de marge)
 
+La data est le chemin critique (la courbe d'apprentissage et la comparaison naïf vs agent sont la preuve pour le jury). Avec Lovable, le front prend environ 1 h : C passe donc la première moitié du build sur la data, en binôme avec A, sur une ligne de coupe sans fichier commun.
+
 | Personne | Rôle |
 |---|---|
-| A : Data | Aiven, chargement CSV, météo, flotte simulée, modèle de consommation, métriques |
-| B : Agent | Heuristique, plan naïf, boucle agent, explications |
-| C : Produit | Front Lovable, déploiement sur Aiven Runtime, écran dépôt, scénario de démo, pitch |
+| A : Data 1, infra et ingestion | Services Aiven, tables (section 8), `scripts/load_data.py`, GTFS, Open-Meteo, prix, `app/data.py` |
+| B : Agent | Heuristique, plan naïf, boucle agent, explications, routes FastAPI |
+| C : Data 2 puis Produit | Flotte simulée, modèle « vrai » caché + bruit, régression, MAPE, rejeu sur 3 nuits, `app/model.py` et `app/metrics.py`. Puis front Lovable, déploiement sur Aiven Runtime, scénario de démo, pitch |
 
-| Heure | A : Data | B : Agent | C : Produit |
+| Heure | A : Data 1 | B : Agent | C : Data 2 puis Produit |
 |---|---|---|---|
-| 0:00 à 0:20 | Ensemble : valider schéma des tables (section 8) et format JSON (section 9) | | |
-| 0:20 à 1:30 | Aiven en place, tables remplies | Heuristique et plan naïf sur données factices | Projet Lovable publié sur données factices, backend vide déployé |
-| **1:30** | **Checkpoint : données en base, un plan sort, une page en ligne** | | |
-| 1:30 à 3:00 | Modèle de consommation, rejeu de 3 nuits | Boucle agent complète | Écran dépôt et bouton « vague de froid » |
-| **3:00** | **Checkpoint : intégration de bout en bout** | | |
-| 3:00 à 4:00 | Métriques | Fiabiliser le scénario | Slides de pitch |
+| 0:00 à 0:20 | Ensemble : valider schéma des tables (section 8), format JSON (section 9) et signatures Python (section 9) | | |
+| 0:20 à 0:50 | Versions factices de `app/data.py`, connexion Aiven | Heuristique sur `app/data.py` factice | Projet Lovable lancé sur données factices, versions factices de `app/model.py` |
+| 0:50 à 1:30 | Tables créées et remplies dans Aiven | Heuristique et plan naïf | Flotte simulée et consommation observée, en pandas en local |
+| **1:30** | **Checkpoint : données en base, un plan sort, le modèle tourne en local, une page Lovable en ligne** | | |
+| 1:30 à 2:30 | `app/data.py` en mode `aiven`, écriture des plans | Boucle agent complète | Régression, MAPE, rejeu sur 3 nuits, écriture dans Aiven, `app/metrics.py` |
+| 2:30 à 3:00 | Backend déployé sur Aiven Runtime | Routes FastAPI pour le front | Retour au front : écran dépôt et bouton « vague de froid » branchés sur l'API |
+| **3:00** | **Checkpoint : intégration de bout en bout, courbe d'apprentissage visible** | | |
+| 3:00 à 4:00 | Métriques dans le front, aide à l'intégration | Fiabiliser le scénario | Slides de pitch |
 | 4:00 à 4:30 | Ensemble : gel du code, déploiement final, vidéo de secours | | |
-| 4:30 à 6:00 | Marge : bugs, répétitions, bonus | | |
+| 4:30 à 6:00 | Marge : bugs, répétitions, bonus (ClickHouse, Lightdash) | | |
+
+### À faire avant le jour J (si le règlement l'autorise)
+
+Rien de tout ça n'est du code produit, mais chaque point retire un risque du build.
+
+| Tâche | Pourquoi |
+|---|---|
+| Créer le service Aiven PostgreSQL et partager `PG_URI` (hors GitHub) | Le provisionnement prend plusieurs minutes |
+| Extraire les 30 services GTFS en CSV | Choisir le réseau et les lignes prend du temps |
+| Récupérer la nuit froide sur Open-Meteo et la figer en CSV | Repli prêt si l'API bloque |
+| Vérifier qu'Aiven Runtime accepte une app FastAPI + uv (un « hello world ») | C'est le principal risque inconnu de la stack |
+| Installer uv sur les 3 machines, accès au dépôt GitHub pour les 3 | Ne pas perdre les 20 premières minutes |
+
+### Travail avec Git
+
+Les trois personnes sont ajoutées comme collaborateurs du dépôt (Settings > Collaborators), donc avec accès en écriture : chacun le **clone**, personne ne le forke (un fork obligerait à passer par des pull requests entre dépôts).
+
+| Étape | Commande |
+|---|---|
+| Une fois | `git clone https://github.com/willthn/WattShift.git` |
+| Avant de commencer et avant chaque push | `git pull --rebase` |
+| Après chaque étape qui marche | `git add …`, `git commit`, `git push` |
+
+| Règle | Détail |
+|---|---|
+| Tout le monde sur `main`, petits commits fréquents | Pas le temps de relire des PR en 4h30 |
+| Un fichier, un responsable (voir section 9) | Pratiquement aucun conflit |
+| `uv.lock` : en cas de conflit, résoudre `pyproject.toml` puis régénérer avec `uv lock` | Le fichier est généré, il ne se fusionne pas à la main |
+| Le front Lovable vit dans son propre dépôt | Lovable gère seul sa synchro GitHub |
+| Même règles avec Claude Code ou VS Code | L'outil ne change rien au workflow Git |
 
 ### Règles d'équipe
 
 | Règle | Pourquoi |
 |---|---|
-| Le contrat JSON ne change pas sans prévenir les deux autres | Permet de travailler en parallèle |
+| Le contrat JSON et les signatures Python ne changent pas sans prévenir les deux autres | Permet de travailler en parallèle |
 | Si une source réelle bloque plus de 15 min, passer en CSV figé | Le temps est la contrainte n°1 |
 | Déployer sur Aiven dès la première heure | Éviter la mauvaise surprise de fin |
 | Python uniquement via uv (`uv add`, `uv run`), `uv.lock` commité | Même environnement sur les 3 machines et sur Aiven Runtime |
