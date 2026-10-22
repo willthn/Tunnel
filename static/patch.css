@@ -7,7 +7,7 @@ html, body, #root { height: auto; min-height: 100%; }
 .sidebar { position: sticky; top: 0; height: 100vh; align-self: start; }
 .main { grid-template-rows: auto 460px auto; }
 .bottom { min-height: auto; overflow: visible; }
-.orders-list { max-height: 420px; }
+.orders-list { max-height: 900px; }
 .chart-wrap { min-height: 260px; }
 
 /* Boutons sans action : « Replier », « Notifications », « Réglages » */
