@@ -87,3 +87,17 @@ def test_cors_allows_lovable_and_localhost(client, origin):
 def test_cors_rejects_other_origins(client, origin):
     r = client.get("/health", headers={"Origin": origin})
     assert "access-control-allow-origin" not in r.headers
+
+
+def test_unhandled_error_is_logged_and_returned_without_secrets(monkeypatch, caplog):
+    from app import data
+
+    def boom():
+        raise ValueError("connexion postgres://user:motdepasse@host:5432/db refusée")
+
+    monkeypatch.setattr(data, "get_buses", boom)
+    r = TestClient(app, raise_server_exceptions=False).get("/plan", params={"strategy": "naive"})
+    assert r.status_code == 500
+    detail = r.json()["detail"]
+    assert detail.startswith("ValueError") and "motdepasse" not in detail and "<masqué>" in detail
+    assert any("Erreur non gérée" in rec.getMessage() for rec in caplog.records)

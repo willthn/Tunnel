@@ -3,10 +3,13 @@
 Les routes et leurs réponses font partie du contrat : le front code contre elles.
 Lancer : uv run fastapi dev app/main.py
 """
+import logging
 import os
+import re
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app import metrics
@@ -24,6 +27,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+log = logging.getLogger("uvicorn.error")
+
+
+@app.exception_handler(Exception)
+async def unhandled_error(request: Request, exc: Exception) -> JSONResponse:
+    """Toute erreur inattendue : traceback dans les logs du serveur, type et message (sans secret) au client."""
+    log.error("Erreur non gérée sur %s %s", request.method, request.url.path, exc_info=exc)
+    msg = re.sub(r"postgres(?:ql)?://\S+", "postgres://<masqué>", f"{type(exc).__name__}: {exc}")
+    return JSONResponse(status_code=500, content={"detail": msg[:300]})
 
 
 class ColdSnap(BaseModel):
