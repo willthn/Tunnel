@@ -123,3 +123,13 @@ def test_night_without_weather_is_a_404_not_a_500(client, monkeypatch):
     monkeypatch.setattr(data, "get_forecast", no_weather)
     r = client.get("/plan", params={"night_date": "2030-01-01", "strategy": "naive"})
     assert r.status_code == 404 and "2030-01-01" in r.json()["detail"]
+
+
+def test_incident_always_starts_from_the_normal_night(client):
+    """Retour d'Aside : un incident lancé alors que le plan enregistré est déjà « froid » doit détecter le froid."""
+    client.post("/incident/cold-snap", json={"temp_c": -5.0})  # le plan enregistré est maintenant celui du froid
+    again = client.post("/incident/cold-snap", json={"temp_c": -5.0}).json()
+    assess = next(s for s in again["agent"]["agent_trace"] if s["tool"] == "assess_current_plan")
+    assert "ne tient plus" in assess["summary"] or "ne tiennent plus" in assess["summary"]
+    assert not assess["summary"].startswith("Selon le modèle de prévision, à -5°C, 0 service")
+    assert again["comparison"]["agent"]["services_uncovered_real"] == 0
