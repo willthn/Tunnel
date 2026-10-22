@@ -13,7 +13,8 @@ load_dotenv()
 # "fake" : chaque module renvoie des valeurs plausibles en dur. "aiven" : vraies données.
 DATA_MODE: Literal["fake", "aiven"] = os.getenv("DATA_MODE", "fake")  # type: ignore[assignment]
 
-DEFAULT_NIGHT = "2026-01-14"
+DEFAULT_NIGHT = "2026-01-14"  # nuit douce (5,4°C réel à Dijon), base de la démo
+COLD_NIGHT = "2026-01-05"     # vraie nuit froide de Dijon (-6,7°C), backtest et « vague de froid »
 
 
 # --- Référentiel (app/data.py, A) ---------------------------------------------
