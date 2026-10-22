@@ -1,0 +1,60 @@
+"""Tests des routes FastAPI (B). Repli sans LLM (AGENT_LLM=off), aucun réseau."""
+import pytest
+from fastapi.testclient import TestClient
+
+from app import contract
+from app.main import app
+
+NIGHT = contract.DEFAULT_NIGHT
+
+
+@pytest.fixture
+def client():
+    return TestClient(app)
+
+
+def test_naive_and_agent_plans(client):
+    naive = client.get("/plan", params={"strategy": "naive"}).json()
+    agent = client.get("/plan", params={"strategy": "agent"}).json()
+    assert naive["strategy"] == "naive" and "agent_trace" not in naive
+    assert agent["strategy"] == "agent" and agent["agent_trace"][0]["tool"] == "refresh_forecast"
+
+
+def test_unknown_strategy_is_rejected(client):
+    assert client.get("/plan", params={"strategy": "magic"}).status_code == 422
+
+
+def test_second_agent_plan_is_the_saved_one_without_replanning(client):
+    first = client.get("/plan").json()
+    second = client.get("/plan").json()
+    assert [s["tool"] for s in second["agent_trace"]] == ["refresh_forecast", "detect_event"]
+    assert second["assignments"] == first["assignments"]
+
+
+def test_cold_snap_returns_both_plans_judged_at_the_same_temperature(client):
+    body = client.post("/incident/cold-snap", json={"temp_c": -5.0}).json()
+    assert {"naive", "agent", "comparison"} <= body.keys()
+    assert body["naive"]["forecast_min_temp_c"] == body["agent"]["forecast_min_temp_c"] == -5.0
+    assert body["comparison"]["temp_c"] == -5.0
+    assert body["agent"]["agent_trace"] and "fallback" in body["agent"]
+    tools = [s["tool"] for s in body["agent"]["agent_trace"]]
+    assert tools[:2] == ["refresh_forecast", "detect_event"] and "assess_current_plan" in tools
+
+
+def test_agent_beats_naive_in_the_cold_on_real_consumption(client):
+    c = client.post("/incident/cold-snap", json={"temp_c": -5.0}).json()["comparison"]
+    assert c["agent"]["services_uncovered_real"] < c["naive"]["services_uncovered_real"]
+
+
+def test_reset_restores_the_normal_night_so_the_next_incident_is_detected(client):
+    client.post("/incident/cold-snap", json={"temp_c": -5.0})
+    normal = client.post("/reset").json()
+    assert normal["fallback"] is True and normal["forecast_min_temp_c"] > 0
+    again = client.post("/incident/cold-snap", json={"temp_c": -5.0}).json()
+    assert "Événement détecté" in again["agent"]["agent_trace"][1]["summary"]
+    assert client.get("/plan").json()["forecast_min_temp_c"] == -5.0  # l'incident est le plan en cours
+
+
+def test_metrics_mape(client):
+    history = client.get("/metrics/mape").json()
+    assert history and {"night_date", "mape"} <= history[0].keys()

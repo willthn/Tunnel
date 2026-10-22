@@ -23,6 +23,7 @@ MAX_TOOL_ROUNDS = 8          # tours d'outils maximum avant de passer au repli
 DEADLINE_S = 30.0            # budget de temps pour toute la boucle LLM
 LLM_TIMEOUT_S = 15.0         # délai maximum d'un appel API
 MARGIN_BOUNDS = (15.0, 30.0)
+EVENT_DROP_C = 3.0           # baisse de la prévision (°C) au-delà de laquelle on parle de vague de froid
 HARDEN_STEPS = [             # repli déterministe : du plus léger au plus prudent
     {"advance_charging": True},
     {"advance_charging": True, "margin_pct": 20.0},
@@ -36,8 +37,12 @@ toi-même : tu utilises les outils, qui renvoient des faits chiffrés.
 Appelle ensemble, dans le même tour, les outils indépendants (get_forecast, assess_current_plan et un
 premier run_planner par défaut peuvent partir en parallèle) : chaque tour coûte plusieurs secondes.
 
+La météo a déjà été rafraîchie auprès des fournisseurs (Open-Meteo, Météo-France, ECMWF, GFS) et
+l'événement détecté par le code : le contexte du premier message donne la prévision consolidée, la
+température de l'incident s'il y en a un, et le plan déjà enregistré.
+
 Méthode :
-1. get_forecast : lis la météo de la nuit (et l'éventuel incident de froid).
+1. (déjà fait) Lis le contexte. get_forecast reste disponible pour relire la prévision consolidée.
 2. assess_current_plan : mesure combien de services du plan actuel ne tiennent plus à cette température.
 3. run_planner : produis un plan. Garde la marge par défaut (15 %) pour un premier essai.
 4. check_plan : vérifie-le. S'il n'est pas ok, relance run_planner avec des contraintes plus prudentes
@@ -124,6 +129,9 @@ class _Session:
         self.assessment: dict | None = None
         self._baseline: Plan | None = None
         self._forecast_temp: float | None = None
+        self.refreshed: dict | None = None
+        self.detection: dict | None = None
+        self.saved: Plan | None = None
 
     # --- données ---
     def forecast_temp(self) -> float:
@@ -133,9 +141,9 @@ class _Session:
         return self._forecast_temp
 
     def baseline(self) -> Plan:
-        """Le plan normal de la nuit, fait pour la prévision (sans incident)."""
+        """Le plan en cours de la nuit : celui déjà enregistré, sinon un plan frais sur la prévision."""
         if self._baseline is None:
-            self._baseline = planner.run_planner({"night_date": self.night, "strategy": "agent"})
+            self._baseline = self.saved or planner.run_planner({"night_date": self.night, "strategy": "agent"})
         return self._baseline
 
     def elapsed(self) -> float:
@@ -156,6 +164,43 @@ class _Session:
         self.trace.append({"tool": tool, "summary": summary, "seconds": round(time.perf_counter() - t, 3)})
 
     # --- outils ---
+    def _tool_refresh_forecast(self, _args):
+        """Premier outil de la boucle : interroge les fournisseurs météo (data.refresh_forecast)."""
+        from datetime import date
+        night = date.fromisoformat(self.night)
+        fetch = getattr(data, "refresh_forecast", None)
+        if fetch is None:  # data.py d'avant refresh_forecast : on relit la prévision en base
+            res = {"min_temp_c": min(p["temp_c"] for p in data.get_forecast(night)), "sources": [], "fetched_at": ""}
+        else:
+            res = fetch(night)
+        self._forecast_temp = None  # get_forecast renvoie désormais la valeur consolidée
+        self.refreshed = res
+        n = len(res.get("sources", []))
+        return res, f"Prévision rafraîchie : {res['min_temp_c']:g}°C ({n} source(s) météo)"
+
+    def _tool_detect_event(self, _args):
+        """Compare la prévision au plan déjà enregistré : baisse de plus de 3°C = vague de froid."""
+        try:
+            saved = data.get_plan(self.night, "agent")
+        except NotImplementedError:
+            saved = None
+        self.saved = copy.deepcopy(saved) if saved else None
+        new_temp = self.override if self.override is not None else self.refreshed["min_temp_c"]
+        if self.override is not None:
+            reason = f"incident simulé à {new_temp:g}°C"
+        elif self.saved is None:
+            reason = "aucun plan enregistré pour cette nuit"
+        else:
+            drop = self.saved["forecast_min_temp_c"] - new_temp
+            reason = (f"prévision en baisse de {drop:.1f}°C ({self.saved['forecast_min_temp_c']:g}°C → {new_temp:g}°C)"
+                      if drop > EVENT_DROP_C else
+                      f"écart de {drop:+.1f}°C avec le plan enregistré, sous le seuil de {EVENT_DROP_C:g}°C")
+        needs_plan = (self.override is not None or self.saved is None
+                      or self.saved["forecast_min_temp_c"] - new_temp > EVENT_DROP_C)
+        self.detection = {"event": needs_plan, "reason": reason, "new_temp_c": new_temp,
+                          "saved_plan_temp_c": self.saved["forecast_min_temp_c"] if self.saved else None}
+        return self.detection, ("Événement détecté : " if needs_plan else "Pas d'événement : ") + reason
+
     def _tool_get_forecast(self, _args):
         f = self.forecast_temp()
         result = {"night_date": self.night, "forecast_min_temp_c": f, "incident_temp_c": self.override}
@@ -263,7 +308,8 @@ def _make_client():
 
 def _run_llm(session: _Session, client) -> str:
     """Boucle d'appel d'outils. Renvoie le texte d'explication du LLM ('' s'il n'en a pas donné)."""
-    task = {"night_date": session.night, "incident_temp_c": session.override}
+    task = {"night_date": session.night, "incident_temp_c": session.override,
+            "forecast_refreshed": session.refreshed, "event_detection": session.detection}
     messages = [{"role": "user", "content": "Planifie la nuit. Contexte : " + json.dumps(task)}]
     rounds = 0
     while True:
@@ -304,7 +350,6 @@ def _run_llm(session: _Session, client) -> str:
 
 def _run_fallback(session: _Session) -> None:
     """Même séquence que le LLM, pilotée par le code : prévoir, mesurer, planifier, durcir, retenir."""
-    session.call("get_forecast", {})
     session.call("assess_current_plan", {})
     for step in [{}] + HARDEN_STEPS:
         handle = session.call("run_planner", step)["plan_id"]
@@ -343,20 +388,38 @@ def _template_explanation(session: _Session, plan: Plan) -> str:
 
 # --- point d'entrée -------------------------------------------------------------
 
-def run_agent(constraints: Constraints, client=None) -> Plan:
-    """Produit, vérifie, explique et enregistre le plan de la nuit."""
+def _start(constraints: Constraints) -> _Session:
+    """Étapes communes : rafraîchir la météo (premier outil), puis détecter l'événement."""
+    session = _Session(constraints)
+    session.call("refresh_forecast", {})
+    session.call("detect_event", {})
+    return session
+
+
+def run_agent(constraints: Constraints, client=None, *, use_llm: bool = True, force: bool = False) -> Plan:
+    """Produit, vérifie, explique et enregistre le plan de la nuit.
+
+    Sans événement (pas d'incident, prévision stable) et avec un plan déjà enregistré, renvoie ce plan
+    tel quel. `force` ignore ce plan, `use_llm=False` impose le repli (réinitialisation rapide).
+    """
     if constraints["strategy"] != "agent":
         return planner.run_planner(constraints)
 
-    client = client if client is not None else _make_client()
-    session = _Session(constraints)
+    session = _start(constraints)
+    if session.saved is not None and not session.detection["event"] and not force:
+        plan = session.saved
+        plan["agent_trace"] = session.trace
+        plan.setdefault("fallback", False)
+        return plan
+
+    client = (client if client is not None else _make_client()) if use_llm else None
     explanation: str | None = None
     if client is not None:
         try:
             explanation = _run_llm(session, client)
         except Exception as exc:  # panne API, délai, refus, boucle ratée : la démo continue
             reason = f"{type(exc).__name__}: {exc}"[:160]
-            session = _Session(constraints)
+            session = _start(constraints)
             session.trace.append({"tool": "fallback", "summary": f"Repli sans LLM ({reason})", "seconds": 0.0})
     used_fallback = explanation is None
     if used_fallback:
